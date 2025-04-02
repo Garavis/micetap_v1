@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
+import 'package:micetap_v1/widgets/buttonback.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -14,6 +15,7 @@ class _HomeViewState extends State<HomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: customAppBar('MICETAP'),
       body: Container(
         color: Colors.white,
@@ -35,21 +37,21 @@ class _HomeViewState extends State<HomeView> {
                     title: 'Historial',
                     imagePath: 'assets/images/home/history.png',
                     onTap: () {
-                      // Navegación a vista de historial
+                      Navigator.pushNamed(context, '/history');
                     },
                   ),    
                   _buildMenuCard(
                     title: 'Alertas',
                     imagePath: 'assets/images/home/alert.png',
                     onTap: () {
-                      // Navegación a vista de alertas
+                      Navigator.pushNamed(context, '/alerts');
                     },
                   ),
                   _buildMenuCard(
                     title: 'Sugerencias',
                     imagePath: 'assets/images/home/suge.png',
                     onTap: () {
-                      // Navegación a vista de sugerencias
+                      Navigator.pushNamed(context, '/suggestions');
                     },
                   ),
                   _buildMenuCard(
@@ -90,21 +92,8 @@ class _HomeViewState extends State<HomeView> {
                 ],
               ),
             ),
-            
             // Botón de retroceso
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 20),
-                child: FloatingActionButton(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/');
-                  },
-                  backgroundColor: Colors.blue,
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-              ),
-            ),
+            const FloatingBackButton(route: '/'),
           ],
         ),
       ),

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 PreferredSizeWidget customAppBar(String titleText) {
   return AppBar(
     backgroundColor: Colors.blue,
-    foregroundColor: Colors.white,
+    automaticallyImplyLeading: false,
     leadingWidth: 20,
     title: Row(
       mainAxisSize: MainAxisSize.min,

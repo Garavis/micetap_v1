@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
+import 'package:micetap_v1/widgets/buttonback.dart';
 import 'package:micetap_v1/widgets/texfieldregistros.dart';
 import '../controllers/auth_controller.dart';
 import '../models/user_model.dart';
@@ -85,7 +86,7 @@ class _RegisterViewState extends State<RegisterView> {
     
     return Scaffold(
       appBar: customAppBar('Registro'),
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
@@ -109,7 +110,7 @@ class _RegisterViewState extends State<RegisterView> {
                 ),
               ),
               
-              SizedBox(height: screenHeight * 0.05),
+              SizedBox(height: screenHeight * 0.02),
               // Formulario de registro
               textfieldcampos(Controller: _nameController, text: 'Nombre completo'),
               const SizedBox(height: 15),
@@ -120,7 +121,7 @@ class _RegisterViewState extends State<RegisterView> {
               textfieldcampos(Controller: _idDevice, text: 'Id de Dispositivo'),
               const SizedBox(height: 15),
               textfieldcampos(Controller: _passwordAccess, text: 'Clave Administrativa', isPassword: true),
-              SizedBox(height: screenHeight * 0.05),
+              SizedBox(height: screenHeight * 0.02),
               
               // Botón de registro
               SizedBox(
@@ -143,8 +144,9 @@ class _RegisterViewState extends State<RegisterView> {
                         ),
                 ),
               ),
-              
               SizedBox(height: screenHeight * 0.05),
+              const FloatingBackButton(route: '/'),
+
             ],
           ),
         ),
