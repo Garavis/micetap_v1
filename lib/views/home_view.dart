@@ -58,7 +58,7 @@ class _HomeViewState extends State<HomeView> {
                     title: 'Configuración',
                     imagePath: 'assets/images/home/config.png',
                     onTap: () {
-                      // Navegación a vista de configuración
+                      Navigator.pushNamed(context, '/config');
                     },
                   ),
                 ],
@@ -73,7 +73,7 @@ class _HomeViewState extends State<HomeView> {
                   const Text(
                     'Consumo Actual kWh:',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 20,
                       color: Colors.blue,
                       fontWeight: FontWeight.w500,
                     ),
@@ -83,17 +83,25 @@ class _HomeViewState extends State<HomeView> {
                   Text(
                     _consumption.toStringAsFixed(5).padLeft(8, '0'),
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 20,
                       color: Colors.blue,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 70),
+                  Text(
+                    '©Powered by: Garavis A, Paz H',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ],
               ),
             ),
             // Botón de retroceso
-            const FloatingBackButton(route: '/'),
           ],
         ),
       ),

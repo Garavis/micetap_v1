@@ -1,6 +1,7 @@
 // main.dart
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/views/alert_view.dart';
+import 'package:micetap_v1/views/config_view.dart';
 import 'package:micetap_v1/views/history_view.dart';
 import 'package:micetap_v1/views/home_view.dart' show HomeView;
 import 'package:micetap_v1/views/register_view.dart';
@@ -28,7 +29,8 @@ class MyApp extends StatelessWidget {
         '/home': (context) => HomeView(),
         '/history': (context) => HistoryView(),
         '/alerts': (context) => AlertsView(), // Placeholder for alert view
-        '/suggestions': (context) => const SuggestionsView(), // Placeholder for suggestions view
+        '/suggestions': (context) => SuggestionsView(), 
+        '/config': (context) => ConfigView(), // Placeholder for config view'
       },
     );
   }
