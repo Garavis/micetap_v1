@@ -33,52 +33,52 @@ class _RegisterViewState extends State<RegisterView> {
   }
 
   void _handleRegister() async {
-    // Validaciones básicas
-    if (_nameController.text.isEmpty || 
-        _emailController.text.isEmpty || 
-        _passwordController.text.isEmpty ||
-        _idDevice.text.isEmpty||
-        _passwordAccess.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos')),
-      );
-      return;
-    }
+  if (_nameController.text.isEmpty || 
+      _emailController.text.isEmpty || 
+      _passwordController.text.isEmpty ||
+      _idDevice.text.isEmpty ||
+      _passwordAccess.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Por favor completa todos los campos')),
+    );
+    return;
+  }
 
-    if (_passwordAccess.text != '1109') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contraseña Administrativa no válida')),
-      );
-      return;
-    }
+  if (_passwordAccess.text != '1109') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Contraseña Administrativa no válida')),
+    );
+    return;
+  }
 
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() => _isLoading = true);
 
-    try {
-      // Simulación de registro
-      await Future.delayed(const Duration(seconds: 2));
-      
-      // En un caso real, aquí enviarías los datos al backend
-      
+  try {
+    final result = await _authController.register(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+      _nameController.text.trim(),
+      _idDevice.text.trim(),
+    );
+
+    if (result) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registro exitoso')),
       );
-      
-      // Regresamos a la pantalla de login después de un registro exitoso
       Navigator.pop(context);
-      
-    } catch (e) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en el registro: ${e.toString()}')),
+        const SnackBar(content: Text('No se pudo registrar.')),
       );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error en el registro: ${e.toString()}')),
+    );
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {

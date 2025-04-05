@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
@@ -10,7 +13,35 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
-  final double _consumption = 0.00000;
+  late Stream<DocumentSnapshot> _consumoStream;
+  String? deviceId;
+
+    @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Solo setear si aún no se ha asignado
+    if (deviceId == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args != null && args is String) {
+        deviceId = args;
+      } else {
+        // Aquí puedes redirigir al login o mostrar error
+        print("⚠️ Error: deviceId no encontrado");
+      }
+    }
+
+    // Ya puedes usar deviceId con seguridad
+  }
+
+    @override
+    void initState() {
+      super.initState();
+      _consumoStream = FirebaseFirestore.instance
+          .collection('dispositivos')
+          .doc('MT-2504-98A7')
+          .snapshots();
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -66,40 +97,53 @@ class _HomeViewState extends State<HomeView> {
             ),
             
             // Indicador de consumo
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Column(
-                children: [
-                  const Text(
-                    'Consumo Actual kWh:',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w500,
+            StreamBuilder<DocumentSnapshot>(
+              stream: _consumoStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                }
+
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const Text("No se encontró el dispositivo");
+                }
+
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final consumo = data['consumo'] ?? 0.0;
+
+                return Column(
+                  children: [
+                    const Text(
+                      'Consumo Actual kWh:',
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    _consumption.toStringAsFixed(5).padLeft(8, '0'),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 5),
+                    Text(
+                      consumo.toStringAsFixed(5).padLeft(8, '0'),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 70),
-                  Text(
-                    '©Powered by: Garavis A, Paz H',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w400,
+                    const SizedBox(height: 70),
+                    Text(
+                      '©Powered by: Garavis A, Paz H',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
             // Botón de retroceso
           ],

@@ -26,43 +26,41 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
-  void _handleLogin() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoginLoading = true; // Solo actualizamos el estado del botón de login
-    });
-
-    final user = UserModel(
-      email: _emailController.text,
-      password: _passwordController.text,
+void _handleLogin() async {
+  if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Por favor completa todos los campos')),
     );
-
-    try {
-      final result = await _authController.login(user);
-      if (result) {
-        // Navegar a la siguiente pantalla después del login exitoso
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Credenciales incorrectas')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    } finally {
-      setState(() {
-        _isLoginLoading = false; // Finalizamos el estado de carga solo para login
-      });
-    }
+    return;
   }
+
+  setState(() => _isLoginLoading = true);
+
+  final result = await _authController.login(
+    _emailController.text.trim(),
+    _passwordController.text.trim(),
+  );
+
+if (result) {
+  final deviceId = await _authController.getDeviceId();
+
+  if (deviceId != null) {
+    // Guardar en memoria o pasarlo por navegación
+    Navigator.pushReplacementNamed(
+      context,
+      '/home',
+      arguments: deviceId,
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Error al obtener ID del dispositivo')),
+    );
+  }
+}
+
+
+  setState(() => _isLoginLoading = false);
+}
 
   void _handleRegister() {
     Navigator.pushNamed(context, '/register');

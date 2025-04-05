@@ -1,5 +1,7 @@
 // main.dart
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:micetap_v1/firebase_options.dart';
 import 'package:micetap_v1/views/alert_view.dart';
 import 'package:micetap_v1/views/config_view.dart';
 import 'package:micetap_v1/views/history_view.dart';
@@ -8,7 +10,11 @@ import 'package:micetap_v1/views/register_view.dart';
 import 'package:micetap_v1/views/suggestions_view.dart';
 import 'views/login_view.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(MyApp());
 }
 
