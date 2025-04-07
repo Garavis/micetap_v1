@@ -46,6 +46,17 @@ function generarConsumoAleatorio() {
   
   return Math.max(0.5, Math.min(3.5, +consumo.toFixed(5))); // Asegurar que esté entre 0.5 y 3.5
 }
+const crearSugerencia = async (deviceId, tipo, mensajeCorto, descripcion) => {
+  const sugerenciasRef = db.collection('sugerencias');
+  await sugerenciasRef.add({
+    deviceId,
+    tipoAlerta: tipo,
+    mensajeCorto,
+    descripcion,
+    fecha: admin.firestore.Timestamp.now(),
+  });
+  console.log(`✅ Sugerencia creada para ${tipo}: ${mensajeCorto}`);
+};
 
 function clasificarConsumo(consumo) {
   if (consumo >= UMBRAL_CRITICAL) {
@@ -113,6 +124,7 @@ function obtenerAlertaPredominante(deviceId) {
     consumoMaximo: Math.max(...alertas.map(a => a.consumo)),
     detalles: conteo
   };
+  
 }
 
 // Función para simular fluctuaciones en base al historial del dispositivo

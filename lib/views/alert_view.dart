@@ -1,8 +1,13 @@
+import 'dart:io';
+import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AlertsView extends StatefulWidget {
   const AlertsView({Key? key}) : super(key: key);
@@ -15,6 +20,7 @@ class _AlertsViewState extends State<AlertsView> {
   String? deviceId;
   bool _isLoading = true;
   String? _debugError;
+  List<Map<String, dynamic>> _alertasActuales = [];
 
   @override
   void initState() {
@@ -27,97 +33,90 @@ class _AlertsViewState extends State<AlertsView> {
       _isLoading = true;
       _debugError = null;
     });
-    
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        setState(() {
-          _debugError = "No hay usuario autenticado";
-          _isLoading = false;
-        });
+        _debugError = "No hay usuario autenticado";
         return;
       }
 
       final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
       if (doc.exists) {
         final fetchedId = doc.data()?['deviceId'];
-        print("🔎 deviceId desde usuario: $fetchedId");
-        print("🔎 deviceId tipo: ${fetchedId.runtimeType}");
-        
-        if (fetchedId != null) {
-          String formattedId = fetchedId.toString().trim();
-          print("🔎 deviceId formateado: '$formattedId'");
-          
-          // Verificar si el formato es correcto
-          setState(() {
-            deviceId = formattedId;
-            _isLoading = false;
-          });
-          
-          // Verificar si existen documentos con ese deviceId
-          _checkAlertasByDeviceId(formattedId);
-        } else {
-          setState(() {
-            _debugError = "deviceId es null";
-            _isLoading = false;
-          });
-        }
-      } else {
         setState(() {
-          _debugError = "Usuario no existe en Firestore";
+          deviceId = fetchedId.toString().trim();
           _isLoading = false;
         });
-      }
-    } catch (e) {
-      setState(() {
-        _debugError = "Error al cargar deviceId: $e";
+      } else {
+        _debugError = "Usuario no encontrado";
         _isLoading = false;
-      });
-      print("❌ Error: $e");
-    }
-  }
-
-  Future<void> _checkAlertasByDeviceId(String id) async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('alertas')
-          .get();
-          
-      print("🔍 Total de alertas (sin filtro): ${snapshot.docs.length}");
-      
-      // Verificar manualmente si hay coincidencias
-      int matches = 0;
-      for (var doc in snapshot.docs) {
-        String alertDeviceId = doc.data()['deviceId']?.toString() ?? '';
-        print("🔍 Comparando: '$alertDeviceId' con '$id'");
-        if (alertDeviceId == id) {
-          matches++;
-        }
-      }
-      print("🔍 Coincidencias encontradas: $matches");
-      
-      // Ahora intentar con el filtro where
-      final filteredSnapshot = await FirebaseFirestore.instance
-          .collection('alertas')
-          .where('deviceId', isEqualTo: id)
-          .get();
-      
-      print("🔍 Alertas con filtro where: ${filteredSnapshot.docs.length}");
-      
-      if (filteredSnapshot.docs.isEmpty && matches > 0) {
-        setState(() {
-          _debugError = "El filtro where no funciona pero hay coincidencias";
-        });
       }
     } catch (e) {
-      print("❌ Error al verificar alertas: $e");
+      _debugError = "Error al obtener usuario: $e";
+      _isLoading = false;
     }
   }
 
-  void _exportar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Exportando informe...')),
-    );
+  void _exportar() async {
+    if (_alertasActuales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay alertas para exportar')),
+      );
+      return;
+    }
+
+    try {
+      final List<List<String>> rows = [
+        ['Fecha', 'Tipo', 'Mensaje']
+      ];
+
+      for (final alerta in _alertasActuales) {
+        rows.add([
+          alerta['date'] ?? 'Sin fecha',
+          alerta['type'] ?? 'Desconocido',
+          alerta['message'] ?? 'Mensaje vacío',
+        ]);
+      }
+
+      final csvData = const ListToCsvConverter().convert(rows);
+
+      if (kIsWeb) {
+        final blob = html.Blob([csvData]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.document.createElement('a') as html.AnchorElement
+          ..href = url
+          ..style.display = 'none'
+          ..download = 'alertas_exportadas.csv';
+        html.document.body!.children.add(anchor);
+        anchor.click();
+        html.document.body!.children.remove(anchor);
+        html.Url.revokeObjectUrl(url);
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/alertas_exportadas.csv');
+        await file.writeAsString(csvData);
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Exportación exitosa'),
+            content: Text('El archivo se ha guardado en:\n\n${file.path}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error al exportar alertas: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al exportar alertas')),
+      );
+    }
   }
 
   void _vaciar() async {
@@ -162,65 +161,108 @@ class _AlertsViewState extends State<AlertsView> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              
+
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const Center(child: Text("No hay alertas registradas."));
               }
-              
+
               final allAlertas = snapshot.data!.docs;
-              print("📦 Total alertas: ${allAlertas.length}");
-              
-              // Filtrar manualmente
-              final filteredAlertas = allAlertas.where((doc) {
+
+              final filtered = allAlertas.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final alertDeviceId = data['deviceId']?.toString() ?? '';
-                print("📋 Comparando: '$alertDeviceId' con '$deviceId'");
+                final alertDeviceId = data['deviceId']?.toString().trim();
                 return alertDeviceId == deviceId;
               }).toList();
-              
-              print("📦 Alertas filtradas: ${filteredAlertas.length}");
-              
-              if (filteredAlertas.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text("No hay alertas para el dispositivo: '$deviceId'"),
-                      SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _loadDeviceId,
-                        child: Text("Recargar"),
-                      ),
-                    ],
-                  ),
-                );
+
+              _alertasActuales = filtered.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return {
+                  'type': data['tipo'],
+                  'message': data['mensaje'],
+                  'date': (data['fecha'] as Timestamp?)?.toDate().toLocal().toString(),
+                };
+              }).toList();
+
+              if (_alertasActuales.isEmpty) {
+                return const Center(child: Text("No hay alertas para este dispositivo."));
               }
-              
+
               return ListView.builder(
-                itemCount: filteredAlertas.length,
-                itemBuilder: (context, index) {
-                  final data = filteredAlertas[index].data() as Map<String, dynamic>;
-                  final alertDeviceId = data['deviceId'];
-                  final tipo = data['tipo'] ?? 'info';
-                  final mensaje = data['mensaje'] ?? 'Mensaje desconocido';
-                  final fecha = data['fecha'] as Timestamp?;
-                  final fechaStr = fecha != null 
-                      ? "${fecha.toDate().toLocal()}"
-                      : "Fecha desconocida";
-                  
-                  print("📋 Mostrando alerta: deviceId=$alertDeviceId, tipo=$tipo");
-                  
-                  return _buildAlertItemCard({
-                    'type': tipo,
-                    'message': mensaje,
-                    'date': fechaStr,
-                  });
-                },
+                itemCount: _alertasActuales.length,
+                itemBuilder: (context, index) =>
+                    _buildAlertItemCard(_alertasActuales[index]),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAlertItemCard(Map<String, dynamic> alert) {
+    IconData icon;
+    Color iconColor;
+
+    switch (alert['type']) {
+      case 'warning':
+        icon = Icons.warning_amber_outlined;
+        iconColor = Colors.orange;
+        break;
+      case 'critical':
+        icon = Icons.close;
+        iconColor = Colors.red;
+        break;
+      case 'excellent':
+        icon = Icons.check_circle_outline;
+        iconColor = Colors.green;
+        break;
+      default:
+        icon = Icons.info_outline;
+        iconColor = Colors.blue;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: EdgeInsets.zero,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: iconColor, size: 24),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      alert['message'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                    ),
+                  ),
+                ],
+              ),
+              if (alert['date'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0, left: 34.0),
+                  child: Text(
+                    alert['date'],
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -232,7 +274,6 @@ class _AlertsViewState extends State<AlertsView> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Container(
-              color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,80 +351,6 @@ class _AlertsViewState extends State<AlertsView> {
                 ],
               ),
             ),
-    );
-  }
-
-  Widget _buildAlertItemCard(Map<String, dynamic> alert) {
-    IconData icon;
-    Color iconColor;
-
-    switch (alert['type']) {
-      case 'warning':
-        icon = Icons.warning_amber_outlined;
-        iconColor = Colors.orange;
-        break;
-      case 'critical':
-        icon = Icons.close;
-        iconColor = Colors.red;
-        break;
-      case 'excellent':
-        icon = Icons.check_circle_outline;
-        iconColor = Colors.green;
-        break;
-      default:
-        icon = Icons.info_outline;
-        iconColor = Colors.blue;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        margin: EdgeInsets.zero,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    icon,
-                    color: iconColor,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      alert['message'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                  ),
-                ],
-              ),
-              if (alert.containsKey('date'))
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, left: 34.0),
-                  child: Text(
-                    alert['date'],
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
