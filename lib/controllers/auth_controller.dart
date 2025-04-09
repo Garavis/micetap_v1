@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class AuthController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -45,6 +46,7 @@ class AuthController {
       return true;
     } catch (e) {
       print('Error al iniciar sesión: $e');
+      const SnackBar(content: Text('Credenciales incorrectas'));
       return false;
     }
   }
