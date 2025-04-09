@@ -45,6 +45,18 @@ const momento = {
   }
 };
 
+async function registrarHistorico(deviceId, consumo) {
+  try {
+    await db.collection('dispositivos_historial').add({
+      deviceId: deviceId,
+      consumo: consumo,
+      fecha: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`📊 Registro histórico guardado para ${deviceId}: ${consumo} kWh`);
+  } catch (error) {
+    console.error('Error al guardar registro histórico:', error);
+  }
+}
 // Función mejorada para generar consumo con distribución balanceada
 function generarConsumoAleatorio() {
   const random = Math.random();
@@ -270,6 +282,8 @@ function generarConsumoConTendencia(deviceId) {
   }
 }
 
+
+
 async function actualizarConsumo() {
   try {
     const snapshot = await dispositivosRef.get();
@@ -285,7 +299,8 @@ async function actualizarConsumo() {
         consumo: nuevoConsumo,
         ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp()
       });
-
+      
+      await registrarHistorico(deviceId, nuevoConsumo);
       const clasificacion = clasificarConsumo(nuevoConsumo);
       alertasTemporales[deviceId].unshift({
         ...clasificacion,

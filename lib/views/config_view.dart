@@ -1,6 +1,7 @@
+// lib/views/config_view.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:micetap_v1/controllers/user_config_controller.dart';
+import 'package:micetap_v1/models/user_config_model.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
@@ -12,34 +13,25 @@ class ConfigView extends StatefulWidget {
 }
 
 class _ConfigViewState extends State<ConfigView> {
-  final user = FirebaseAuth.instance.currentUser;
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>> _userStream() {
-    return FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(user?.uid)
-        .snapshots();
-  }
+  final ConfigController _controller = ConfigController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: customAppBar('CONFIGURACIÓN'),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _userStream(),
+      body: StreamBuilder<UserConfigModel>(
+        stream: _controller.getUserConfigStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData) {
             return const Center(child: Text('Usuario no encontrado'));
           }
 
-          final data = snapshot.data!.data()!;
-          final userName = data['nombre'] ?? 'Sin nombre';
-          final deviceId = data['deviceId'] ?? 'Sin ID';
+          final userData = snapshot.data!;
 
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
@@ -56,7 +48,7 @@ class _ConfigViewState extends State<ConfigView> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  userName,
+                  userData.nombre,
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -82,7 +74,7 @@ class _ConfigViewState extends State<ConfigView> {
                         ),
                       ),
                       Text(
-                        deviceId,
+                        userData.deviceId,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -97,8 +89,8 @@ class _ConfigViewState extends State<ConfigView> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
-                      FirebaseAuth.instance.signOut();
+                    onPressed: () async {
+                      await _controller.signOut();
                       Navigator.pushReplacementNamed(context, '/');
                     },
                     style: ElevatedButton.styleFrom(

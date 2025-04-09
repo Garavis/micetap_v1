@@ -1,13 +1,11 @@
-import 'dart:io';
-import 'dart:html' as html;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:csv/csv.dart';
+// alert_view.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:micetap_v1/controllers/alert_controller.dart';
+import 'package:micetap_v1/models/alert_model.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
-import 'package:path_provider/path_provider.dart';
+
 
 class AlertsView extends StatefulWidget {
   const AlertsView({Key? key}) : super(key: key);
@@ -17,10 +15,10 @@ class AlertsView extends StatefulWidget {
 }
 
 class _AlertsViewState extends State<AlertsView> {
+  final AlertsController _controller = AlertsController();
   String? deviceId;
   bool _isLoading = true;
   String? _debugError;
-  List<Map<String, dynamic>> _alertasActuales = [];
 
   @override
   void initState() {
@@ -35,102 +33,37 @@ class _AlertsViewState extends State<AlertsView> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _debugError = "No hay usuario autenticado";
-        return;
-      }
-
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
-      if (doc.exists) {
-        final fetchedId = doc.data()?['deviceId'];
-        setState(() {
-          deviceId = fetchedId.toString().trim();
+      final fetchedId = await _controller.loadDeviceId();
+      
+      setState(() {
+        if (fetchedId != null && fetchedId.isNotEmpty) {
+          deviceId = fetchedId;
           _isLoading = false;
-        });
-      } else {
-        _debugError = "Usuario no encontrado";
-        _isLoading = false;
-      }
+          print('Vista: DeviceId cargado: $deviceId'); // Para depuración
+        } else {
+          _debugError = "deviceId no encontrado";
+          _isLoading = false;
+          print('Vista: Error de deviceId: $_debugError');
+        }
+      });
     } catch (e) {
-      _debugError = "Error al obtener usuario: $e";
-      _isLoading = false;
+      setState(() {
+        _debugError = "Error al obtener usuario: $e";
+        _isLoading = false;
+        print('Vista: Excepción: $_debugError');
+      });
     }
   }
 
   void _exportar() async {
-    if (_alertasActuales.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay alertas para exportar')),
-      );
-      return;
-    }
-
-    try {
-      final List<List<String>> rows = [
-        ['Fecha', 'Tipo', 'Mensaje']
-      ];
-
-      for (final alerta in _alertasActuales) {
-        rows.add([
-          alerta['date'] ?? 'Sin fecha',
-          alerta['type'] ?? 'Desconocido',
-          alerta['message'] ?? 'Mensaje vacío',
-        ]);
-      }
-
-      final csvData = const ListToCsvConverter().convert(rows);
-
-      if (kIsWeb) {
-        final blob = html.Blob([csvData]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        final anchor = html.document.createElement('a') as html.AnchorElement
-          ..href = url
-          ..style.display = 'none'
-          ..download = 'alertas_exportadas.csv';
-        html.document.body!.children.add(anchor);
-        anchor.click();
-        html.document.body!.children.remove(anchor);
-        html.Url.revokeObjectUrl(url);
-      } else {
-        final dir = await getApplicationDocumentsDirectory();
-        final file = File('${dir.path}/alertas_exportadas.csv');
-        await file.writeAsString(csvData);
-
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Exportación exitosa'),
-            content: Text('El archivo se ha guardado en:\n\n${file.path}'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      print('❌ Error al exportar alertas: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al exportar alertas')),
-      );
-    }
+    await _controller.exportAlerts(context);
   }
 
   void _vaciar() async {
     if (deviceId == null) return;
-
-    final snapshot = await FirebaseFirestore.instance
-        .collection('alertas')
-        .where('deviceId', isEqualTo: deviceId)
-        .get();
-
-    for (final doc in snapshot.docs) {
-      await doc.reference.delete();
-    }
-
+    
+    await _controller.clearAlerts(deviceId!);
+    
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Alertas eliminadas')),
     );
@@ -153,10 +86,7 @@ class _AlertsViewState extends State<AlertsView> {
           ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('alertas')
-                .orderBy('fecha', descending: true)
-                .snapshots(),
+            stream: _controller.getAlertsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -166,31 +96,15 @@ class _AlertsViewState extends State<AlertsView> {
                 return const Center(child: Text("No hay alertas registradas."));
               }
 
-              final allAlertas = snapshot.data!.docs;
+              final alertas = _controller.filterAlertsByDeviceId(snapshot.data!, deviceId);
 
-              final filtered = allAlertas.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final alertDeviceId = data['deviceId']?.toString().trim();
-                return alertDeviceId == deviceId;
-              }).toList();
-
-              _alertasActuales = filtered.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return {
-                  'type': data['tipo'],
-                  'message': data['mensaje'],
-                  'date': (data['fecha'] as Timestamp?)?.toDate().toLocal().toString(),
-                };
-              }).toList();
-
-              if (_alertasActuales.isEmpty) {
+              if (alertas.isEmpty) {
                 return const Center(child: Text("No hay alertas para este dispositivo."));
               }
 
               return ListView.builder(
-                itemCount: _alertasActuales.length,
-                itemBuilder: (context, index) =>
-                    _buildAlertItemCard(_alertasActuales[index]),
+                itemCount: alertas.length,
+                itemBuilder: (context, index) => _buildAlertItemCard(alertas[index]),
               );
             },
           ),
@@ -199,27 +113,10 @@ class _AlertsViewState extends State<AlertsView> {
     );
   }
 
-  Widget _buildAlertItemCard(Map<String, dynamic> alert) {
-    IconData icon;
-    Color iconColor;
-
-    switch (alert['type']) {
-      case 'warning':
-        icon = Icons.warning_amber_outlined;
-        iconColor = Colors.orange;
-        break;
-      case 'critical':
-        icon = Icons.close;
-        iconColor = Colors.red;
-        break;
-      case 'excellent':
-        icon = Icons.check_circle_outline;
-        iconColor = Colors.green;
-        break;
-      default:
-        icon = Icons.info_outline;
-        iconColor = Colors.blue;
-    }
+  Widget _buildAlertItemCard(Alert alert) {
+    final visualData = _controller.getAlertVisualData(alert.type);
+    final IconData icon = visualData['icon'];
+    final Color iconColor = visualData['color'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
@@ -240,7 +137,7 @@ class _AlertsViewState extends State<AlertsView> {
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      alert['message'] ?? '',
+                      alert.message ?? '',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
@@ -251,11 +148,11 @@ class _AlertsViewState extends State<AlertsView> {
                   ),
                 ],
               ),
-              if (alert['date'] != null)
+              if (alert.date != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0, left: 34.0),
                   child: Text(
-                    alert['date'],
+                    alert.date!,
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ),

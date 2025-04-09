@@ -1,8 +1,8 @@
+// suggestions_view.dart
 import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:micetap_v1/controllers/suggestion_controller.dart';
+import 'package:micetap_v1/models/suggestion_model.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
@@ -14,109 +14,43 @@ class SuggestionsView extends StatefulWidget {
 }
 
 class _SuggestionsViewState extends State<SuggestionsView> {
-  String? deviceId;
-  String? _debugError;
+  final SuggestionController _controller = SuggestionController();
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadDeviceId();
+    _loadData();
   }
 
-  Future<void> _loadDeviceId() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() {
-          _debugError = "Usuario no autenticado";
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
-
-      if (!doc.exists) {
-        setState(() {
-          _debugError = "Documento del usuario no encontrado en Firestore";
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final fetchedDeviceId = doc.data()?['deviceId'];
-      if (fetchedDeviceId == null) {
-        setState(() {
-          _debugError = "⚠️ El campo 'deviceId' no existe en el documento de usuario.";
-          _isLoading = false;
-        });
-        return;
-      }
-
-      setState(() {
-        deviceId = fetchedDeviceId.toString().trim();
-        _debugError = null;
-        _isLoading = false;
-      });
-
-      print("✅ deviceId cargado: $deviceId");
-      
-      // Test query to verify data retrieval
-      _testQuery();
-      
-    } catch (e) {
-      setState(() {
-        _debugError = "Error al cargar datos: $e";
-        _isLoading = false;
-      });
-      print("❌ Error en _loadDeviceId: $e");
-    }
-  }
-
-  void _testQuery() async {
-    if (deviceId == null) return;
+  Future<void> _loadData() async {
+    final success = await _controller.loadDeviceId();
     
-    try {
-      final snapshot = await FirebaseFirestore.instance
-        .collection('sugerencias')
-        .where('deviceId', isEqualTo: deviceId)
-        .get();
-      
-      print("📋 Documentos encontrados: ${snapshot.docs.length}");
-      for (var doc in snapshot.docs) {
-        print("📄 Documento: ${doc.data()}");
-      }
-    } catch (e) {
-      print("❌ Error en consulta: $e");
+    // Opcional: realizar consulta de prueba
+    if (success) {
+      _controller.testQuery();
     }
+    
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   void _vaciar() async {
-    if (deviceId == null) return;
-
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('sugerencias')
-          .where('deviceId', isEqualTo: deviceId)
-          .get();
-
-      for (final doc in snapshot.docs) {
-        await doc.reference.delete();
-      }
-
+    final error = await _controller.deleteAllSuggestions();
+    
+    if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sugerencias eliminadas')),
       );
-    } catch (e) {
-      print("❌ Error al vaciar sugerencias: $e");
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al eliminar sugerencias: $e')),
+        SnackBar(content: Text(error)),
       );
     }
   }
 
-  void _showSuggestionDetails(Map<String, dynamic> suggestion) {
+  void _showSuggestionDetails(SuggestionModel suggestion) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -135,21 +69,21 @@ class _SuggestionsViewState extends State<SuggestionsView> {
               Row(
                 children: [
                   Icon(
-                    suggestion['tipoAlerta'] == 'warning'
+                    suggestion.tipoAlerta == 'warning'
                         ? Icons.warning_amber_outlined
-                        : suggestion['tipoAlerta'] == 'critical'
+                        : suggestion.tipoAlerta == 'critical'
                             ? Icons.close
                             : Icons.info_outline,
-                    color: suggestion['tipoAlerta'] == 'warning'
+                    color: suggestion.tipoAlerta == 'warning'
                         ? Colors.orange
-                        : suggestion['tipoAlerta'] == 'critical'
+                        : suggestion.tipoAlerta == 'critical'
                             ? Colors.red
                             : Colors.blue,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      suggestion['mensajeCorto'] ?? 'Sugerencia',
+                      suggestion.mensajeCorto,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -157,7 +91,7 @@ class _SuggestionsViewState extends State<SuggestionsView> {
               ),
               const SizedBox(height: 15),
               Text(
-                suggestion['descripcion'] ?? '',
+                suggestion.descripcion,
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 25),
@@ -177,11 +111,11 @@ class _SuggestionsViewState extends State<SuggestionsView> {
     );
   }
 
-  Widget _buildSuggestionItem(Map<String, dynamic> suggestion) {
+  Widget _buildSuggestionItem(SuggestionModel suggestion) {
     IconData icon;
     Color iconColor;
 
-    switch (suggestion['tipoAlerta']) {
+    switch (suggestion.tipoAlerta) {
       case 'warning':
         icon = Icons.warning_amber_outlined;
         iconColor = Colors.orange;
@@ -211,7 +145,7 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    suggestion['mensajeCorto'] ?? 'Sugerencia',
+                    suggestion.mensajeCorto,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -225,23 +159,8 @@ class _SuggestionsViewState extends State<SuggestionsView> {
   }
 
   Widget _buildSuggestionList() {
-    print("🔍 Buscando sugerencias para deviceId: $deviceId");
-    
-    // Try getting data with a more permissive query first (for debugging)
-    bool isDebugging = false; // Set to true to see all suggestions regardless of deviceId
-    
-    return StreamBuilder<QuerySnapshot>(
-      stream: isDebugging 
-        ? FirebaseFirestore.instance
-            .collection('sugerencias')
-            .orderBy('fecha', descending: true)
-            .limit(10)
-            .snapshots()
-        : FirebaseFirestore.instance
-            .collection('sugerencias')
-            .where('deviceId', isEqualTo: deviceId)
-            .orderBy('fecha', descending: true)
-            .snapshots(),
+    return StreamBuilder<List<SuggestionModel>>(
+      stream: _controller.getSuggestionsStream(),
       builder: (context, snapshot) {
         print("📊 Estado del snapshot: ${snapshot.connectionState}");
         
@@ -254,30 +173,28 @@ class _SuggestionsViewState extends State<SuggestionsView> {
           return const Center(child: CircularProgressIndicator());
         }
         
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          print("⚠️ No hay datos: ${snapshot.data?.docs.length ?? 0} documentos");
+        final suggestions = snapshot.data ?? [];
+        
+        if (suggestions.isEmpty) {
+          print("⚠️ No hay datos");
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text("No hay sugerencias registradas."),
-                if (isDebugging) 
-                  Text("DeviceId: $deviceId", style: TextStyle(color: Colors.grey)),
               ],
             ),
           );
         }
 
-        final docs = snapshot.data!.docs;
-        print("✅ Sugerencias cargadas: ${docs.length}");
+        print("✅ Sugerencias cargadas: ${suggestions.length}");
         
         return ListView.builder(
-          itemCount: docs.length,
+          itemCount: suggestions.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            // Debug print para cada item
-            print("📱 Item $index: ${data['mensajeCorto']}");
-            return _buildSuggestionItem(data);
+            final suggestion = suggestions[index];
+            print("📱 Item $index: ${suggestion.mensajeCorto}");
+            return _buildSuggestionItem(suggestion);
           },
         );
       },
@@ -291,17 +208,17 @@ class _SuggestionsViewState extends State<SuggestionsView> {
       appBar: customAppBar('SUGERENCIAS'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : deviceId == null
+          : _controller.deviceId == null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        _debugError ?? 'Error al cargar el dispositivo',
+                        _controller.errorMessage ?? 'Error al cargar el dispositivo',
                         style: const TextStyle(color: Colors.red),
                       ),
                       ElevatedButton(
-                        onPressed: _loadDeviceId,
+                        onPressed: _loadData,
                         child: const Text('Reintentar'),
                       ),
                     ],
@@ -325,7 +242,7 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                             ),
                           ),
                           Text(
-                            'ID: ${deviceId?.substring(0, min(deviceId!.length, 6))}...',
+                            'ID: ${_controller.deviceId?.substring(0, min(_controller.deviceId!.length, 6))}...',
                             style: TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                         ],
