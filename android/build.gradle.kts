@@ -1,6 +1,10 @@
 buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
     dependencies {
-        classpath 'com.google.gms:google-services:4.3.15' // Versión más reciente
+        classpath("com.google.gms:google-services:4.3.15")
     }
 }
 

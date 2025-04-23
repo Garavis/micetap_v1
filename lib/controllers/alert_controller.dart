@@ -1,5 +1,5 @@
 // alert_controller.dart
-import 'dart:html' as html;
+//import 'dart:html' as html;
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -104,6 +104,7 @@ Future<String?> loadDeviceId() async {
       final csvData = const ListToCsvConverter().convert(rows);
 
       if (kIsWeb) {
+        /*
         final blob = html.Blob([csvData]);
         final url = html.Url.createObjectUrlFromBlob(blob);
         final anchor = html.document.createElement('a') as html.AnchorElement
@@ -114,6 +115,7 @@ Future<String?> loadDeviceId() async {
         anchor.click();
         html.document.body!.children.remove(anchor);
         html.Url.revokeObjectUrl(url);
+        */
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final file = File('${dir.path}/alertas_exportadas.csv');
