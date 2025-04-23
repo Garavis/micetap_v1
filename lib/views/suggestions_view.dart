@@ -1,4 +1,3 @@
-// suggestions_view.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/controllers/suggestion_controller.dart';

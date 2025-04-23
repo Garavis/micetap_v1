@@ -1,10 +1,8 @@
-// home_controller.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:micetap_v1/models/home_model.dart';
 
 class HomeController {
-  // Corrección aquí: crear una instancia de HomeModel apropiadamente
-  final HomeModel _model = HomeModel(); // Esto es correcto
+  final HomeModel _model = HomeModel(); 
   
   Stream<DocumentSnapshot> getConsumoStream(String deviceId) {
     return _model.getConsumoStream(deviceId);

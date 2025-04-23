@@ -1,4 +1,3 @@
-// lib/views/config_view.dart
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/controllers/user_config_controller.dart';
 import 'package:micetap_v1/models/user_config_model.dart';
