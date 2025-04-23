@@ -1,4 +1,3 @@
-// alert_view.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:micetap_v1/controllers/alert_controller.dart';

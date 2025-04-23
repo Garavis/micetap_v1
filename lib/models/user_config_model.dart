@@ -1,4 +1,3 @@
-// lib/models/user_config_model.dart
 class UserConfigModel {
   final String uid;
   final String nombre;

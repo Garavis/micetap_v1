@@ -1,4 +1,3 @@
-// main.dart
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/firebase_options.dart';
@@ -34,9 +33,9 @@ class MyApp extends StatelessWidget {
         '/register': (context) => RegisterView(),
         '/home': (context) => HomeView(),
         '/history': (context) => HistoryView(),
-        '/alerts': (context) => AlertsView(), // Placeholder for alert view
+        '/alerts': (context) => AlertsView(), 
         '/suggestions': (context) => SuggestionsView(), 
-        '/config': (context) => ConfigView(), // Placeholder for config view'
+        '/config': (context) => ConfigView(), 
       },
     );
   }
