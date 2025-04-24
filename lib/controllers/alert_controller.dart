@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:micetap_v1/models/alert_model.dart';
 import 'package:path_provider/path_provider.dart';
 
-
 class AlertsController {
   final AlertsModel _model = AlertsModel();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -59,7 +58,6 @@ Future<String?> loadDeviceId() async {
       final alertDeviceId = data['deviceId']?.toString().trim();
       return alertDeviceId == deviceId;
     }).toList();
-    
     _currentAlerts = filtered.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
       return Alert.fromFirestore(data);
@@ -103,6 +101,7 @@ Future<String?> loadDeviceId() async {
       final csvData = const ListToCsvConverter().convert(rows);
 
       if (kIsWeb) {
+        
         /*
         final blob = html.Blob([csvData]);
         final url = html.Url.createObjectUrlFromBlob(blob);
@@ -141,7 +140,6 @@ Future<String?> loadDeviceId() async {
       );
     }
   }
-  
   // Obtener el ícono y color según el tipo de alerta
   Map<String, dynamic> getAlertVisualData(String? type) {
     IconData icon;
@@ -164,7 +162,6 @@ Future<String?> loadDeviceId() async {
         icon = Icons.info_outline;
         iconColor = Colors.blue;
     }
-    
     return {
       'icon': icon,
       'color': iconColor,

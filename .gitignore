@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+**/serviceAccountKey.json
 .DS_Store
 .atom/
 .build/
