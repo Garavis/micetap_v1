@@ -45,7 +45,7 @@ class AlertsModel {
         .get();
         
     return snapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       return Alert.fromFirestore(data);
     }).toList();
   }

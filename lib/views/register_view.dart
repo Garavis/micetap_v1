@@ -4,7 +4,6 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 import 'package:micetap_v1/widgets/texfieldregistros.dart';
 import '../controllers/auth_controller.dart';
-import '../models/user_model.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({Key? key}) : super(key: key);
