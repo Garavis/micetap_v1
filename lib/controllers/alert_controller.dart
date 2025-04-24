@@ -1,4 +1,4 @@
-import 'dart:html' as html;
+//import 'dart:html' as html;
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/models/alert_model.dart';
 import 'package:path_provider/path_provider.dart';
-
 
 class AlertsController {
   final AlertsModel _model = AlertsModel();
@@ -59,7 +58,6 @@ Future<String?> loadDeviceId() async {
       final alertDeviceId = data['deviceId']?.toString().trim();
       return alertDeviceId == deviceId;
     }).toList();
-    
     _currentAlerts = filtered.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
       return Alert.fromFirestore(data);
@@ -103,6 +101,8 @@ Future<String?> loadDeviceId() async {
       final csvData = const ListToCsvConverter().convert(rows);
 
       if (kIsWeb) {
+        
+        /*
         final blob = html.Blob([csvData]);
         final url = html.Url.createObjectUrlFromBlob(blob);
         final anchor = html.document.createElement('a') as html.AnchorElement
@@ -113,6 +113,7 @@ Future<String?> loadDeviceId() async {
         anchor.click();
         html.document.body!.children.remove(anchor);
         html.Url.revokeObjectUrl(url);
+        */
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final file = File('${dir.path}/alertas_exportadas.csv');
@@ -139,7 +140,6 @@ Future<String?> loadDeviceId() async {
       );
     }
   }
-  
   // Obtener el ícono y color según el tipo de alerta
   Map<String, dynamic> getAlertVisualData(String? type) {
     IconData icon;
@@ -162,7 +162,6 @@ Future<String?> loadDeviceId() async {
         icon = Icons.info_outline;
         iconColor = Colors.blue;
     }
-    
     return {
       'icon': icon,
       'color': iconColor,

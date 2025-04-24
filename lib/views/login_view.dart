@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/widgets/texfieldregistros.dart';
 import '../controllers/auth_controller.dart';
-import '../models/user_model.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({Key? key}) : super(key: key);
@@ -35,13 +34,12 @@ void _handleLogin() async {
   }
 
   setState(() => _isLoginLoading = true);
-
   final result = await _authController.login(
     _emailController.text.trim(),
     _passwordController.text.trim(),
   );
 
-if (result) {
+if (result['success']) {
   final deviceId = await _authController.getDeviceId();
 
   if (deviceId != null) {
@@ -56,9 +54,11 @@ if (result) {
       const SnackBar(content: Text('Error al obtener ID del dispositivo')),
     );
   }
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result['message'])),
+    );
 }
-
-
   setState(() => _isLoginLoading = false);
 }
 

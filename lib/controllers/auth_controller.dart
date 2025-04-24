@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 
 class AuthController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -40,14 +39,13 @@ class AuthController {
 }
 
   // Login
-  Future<bool> login(String email, String password) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-      return true;
+      return {'success': true, 'message': ''};
     } catch (e) {
       print('Error al iniciar sesión: $e');
-      const SnackBar(content: Text('Credenciales incorrectas'));
-      return false;
+      return {'success': false, 'message': 'Credenciales incorrectas'};
     }
   }
 
