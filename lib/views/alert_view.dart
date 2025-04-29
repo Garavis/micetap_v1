@@ -5,7 +5,6 @@ import 'package:micetap_v1/models/alert_model.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
-
 class AlertsView extends StatefulWidget {
   const AlertsView({Key? key}) : super(key: key);
 
@@ -33,23 +32,24 @@ class _AlertsViewState extends State<AlertsView> {
 
     try {
       final fetchedId = await _controller.loadDeviceId();
-      
+
+      if (!mounted) return;
+
       setState(() {
         if (fetchedId != null && fetchedId.isNotEmpty) {
           deviceId = fetchedId;
           _isLoading = false;
-          print('Vista: DeviceId cargado: $deviceId'); // Para depuración
         } else {
           _debugError = "deviceId no encontrado";
           _isLoading = false;
-          print('Vista: Error de deviceId: $_debugError');
         }
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _debugError = "Error al obtener usuario: $e";
         _isLoading = false;
-        print('Vista: Excepción: $_debugError');
       });
     }
   }
@@ -60,12 +60,14 @@ class _AlertsViewState extends State<AlertsView> {
 
   void _vaciar() async {
     if (deviceId == null) return;
-    
+
     await _controller.clearAlerts(deviceId!);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Alertas eliminadas')),
-    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Alertas eliminadas')));
   }
 
   Widget _buildAlertList(String deviceId) {
@@ -95,15 +97,21 @@ class _AlertsViewState extends State<AlertsView> {
                 return const Center(child: Text("No hay alertas registradas."));
               }
 
-              final alertas = _controller.filterAlertsByDeviceId(snapshot.data!, deviceId);
+              final alertas = _controller.filterAlertsByDeviceId(
+                snapshot.data!,
+                deviceId,
+              );
 
               if (alertas.isEmpty) {
-                return const Center(child: Text("No hay alertas para este dispositivo."));
+                return const Center(
+                  child: Text("No hay alertas para este dispositivo."),
+                );
               }
 
               return ListView.builder(
                 itemCount: alertas.length,
-                itemBuilder: (context, index) => _buildAlertItemCard(alertas[index]),
+                itemBuilder:
+                    (context, index) => _buildAlertItemCard(alertas[index]),
               );
             },
           ),
@@ -121,9 +129,7 @@ class _AlertsViewState extends State<AlertsView> {
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
       child: Card(
         elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: EdgeInsets.zero,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
@@ -167,86 +173,89 @@ class _AlertsViewState extends State<AlertsView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: customAppBar('ALERTAS'),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Histórico de Alertas',
-                        style: TextStyle(
-                          fontSize: 20,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        'ID: $deviceId',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Expanded(
-                    child: deviceId == null
-                        ? const Center(child: Text("No hay deviceId"))
-                        : _buildAlertList(deviceId!),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _exportar,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5.0),
-                              ),
-                            ),
-                            child: const Text('Exportar', style: TextStyle(fontSize: 16)),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Histórico de Alertas',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _vaciar,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5.0),
-                              ),
-                            ),
-                            child: const Text('Vaciar', style: TextStyle(fontSize: 16)),
+                        Text(
+                          'ID: $deviceId',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    Expanded(
+                      child:
+                          deviceId == null
+                              ? const Center(child: Text("No hay deviceId"))
+                              : _buildAlertList(deviceId!),
+                    ),
+                    const SizedBox(height: 20),
+                    // Botón de Exportar consistente con Config View
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _exportar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Exportar',
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const FloatingBackButton(route: '/home'),
-                ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Botón de Vaciar consistente con Config View
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _vaciar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Vaciar',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const FloatingBackButton(route: '/home'),
+                  ],
+                ),
               ),
-            ),
     );
   }
 }

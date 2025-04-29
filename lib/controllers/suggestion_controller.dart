@@ -5,12 +5,12 @@ import 'package:micetap_v1/models/suggestion_model.dart';
 class SuggestionController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
+
   String? _deviceId;
   String? get deviceId => _deviceId;
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
-  
+
   // Cargar el ID del dispositivo desde Firestore
   Future<bool> loadDeviceId() async {
     try {
@@ -29,17 +29,16 @@ class SuggestionController {
 
       final fetchedDeviceId = doc.data()?['deviceId'];
       if (fetchedDeviceId == null) {
-        _errorMessage = "⚠️ El campo 'deviceId' no existe en el documento de usuario.";
+        _errorMessage =
+            "El campo 'deviceId' no existe en el documento de usuario.";
         return false;
       }
 
       _deviceId = fetchedDeviceId.toString().trim();
       _errorMessage = null;
-      print("✅ deviceId cargado: $_deviceId");
       return true;
     } catch (e) {
       _errorMessage = "Error al cargar datos: $e";
-      print("❌ Error en loadDeviceId: $e");
       return false;
     }
   }
@@ -49,17 +48,17 @@ class SuggestionController {
     if (_deviceId == null) {
       return Stream.value([]);
     }
-    
+
     return _firestore
-      .collection('sugerencias')
-      .where('deviceId', isEqualTo: _deviceId)
-      .orderBy('fecha', descending: true)
-      .snapshots()
-      .map((snapshot) {
-        return snapshot.docs
-          .map((doc) => SuggestionModel.fromFirestore(doc.id, doc.data()))
-          .toList();
-      });
+        .collection('sugerencias')
+        .where('deviceId', isEqualTo: _deviceId)
+        .orderBy('fecha', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => SuggestionModel.fromFirestore(doc.id, doc.data()))
+              .toList();
+        });
   }
 
   // Eliminar todas las sugerencias del dispositivo
@@ -67,38 +66,35 @@ class SuggestionController {
     if (_deviceId == null) return "No hay dispositivo seleccionado";
 
     try {
-      final snapshot = await _firestore
-          .collection('sugerencias')
-          .where('deviceId', isEqualTo: _deviceId)
-          .get();
+      final snapshot =
+          await _firestore
+              .collection('sugerencias')
+              .where('deviceId', isEqualTo: _deviceId)
+              .get();
 
+      final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
-        await doc.reference.delete();
+        batch.delete(doc.reference);
       }
-      
+
+      await batch.commit();
       return null; // Éxito, sin mensaje de error
     } catch (e) {
-      print("❌ Error al vaciar sugerencias: $e");
       return "Error al eliminar sugerencias: $e";
     }
   }
-  
+
   // Método para realizar pruebas de consulta
   void testQuery() async {
     if (_deviceId == null) return;
-    
+
     try {
-      final snapshot = await _firestore
-        .collection('sugerencias')
-        .where('deviceId', isEqualTo: _deviceId)
-        .get();
-      
-      print("📋 Documentos encontrados: ${snapshot.docs.length}");
-      for (var doc in snapshot.docs) {
-        print("📄 Documento: ${doc.data()}");
-      }
+      await _firestore
+          .collection('sugerencias')
+          .where('deviceId', isEqualTo: _deviceId)
+          .get();
     } catch (e) {
-      print("❌ Error en consulta: $e");
+      _errorMessage = "Error en consulta: $e";
     }
   }
 }

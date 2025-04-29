@@ -24,28 +24,31 @@ class _SuggestionsViewState extends State<SuggestionsView> {
 
   Future<void> _loadData() async {
     final success = await _controller.loadDeviceId();
-    
-    // Opcional: realizar consulta de prueba
+
     if (success) {
       _controller.testQuery();
     }
-    
-    setState(() {
-      _isLoading = false;
-    });
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  void _vaciar() async {
+  Future<void> _vaciar() async {
     final error = await _controller.deleteAllSuggestions();
-    
+
+    if (!mounted) return;
+
     if (error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sugerencias eliminadas')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Sugerencias eliminadas')));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -71,11 +74,12 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                     suggestion.tipoAlerta == 'warning'
                         ? Icons.warning_amber_outlined
                         : suggestion.tipoAlerta == 'critical'
-                            ? Icons.close
-                            : Icons.info_outline,
-                    color: suggestion.tipoAlerta == 'warning'
-                        ? Colors.orange
-                        : suggestion.tipoAlerta == 'critical'
+                        ? Icons.close
+                        : Icons.info_outline,
+                    color:
+                        suggestion.tipoAlerta == 'warning'
+                            ? Colors.orange
+                            : suggestion.tipoAlerta == 'critical'
                             ? Colors.red
                             : Colors.blue,
                   ),
@@ -83,7 +87,10 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                   Expanded(
                     child: Text(
                       suggestion.mensajeCorto,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -99,7 +106,10 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cerrar', style: TextStyle(color: Colors.blue)),
+                    child: const Text(
+                      'Cerrar',
+                      style: TextStyle(color: Colors.blue),
+                    ),
                   ),
                 ],
               ),
@@ -111,8 +121,8 @@ class _SuggestionsViewState extends State<SuggestionsView> {
   }
 
   Widget _buildSuggestionItem(SuggestionModel suggestion) {
-    IconData icon;
-    Color iconColor;
+    final IconData icon;
+    final Color iconColor;
 
     switch (suggestion.tipoAlerta) {
       case 'warning':
@@ -145,7 +155,10 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                 Expanded(
                   child: Text(
                     suggestion.mensajeCorto,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -161,39 +174,24 @@ class _SuggestionsViewState extends State<SuggestionsView> {
     return StreamBuilder<List<SuggestionModel>>(
       stream: _controller.getSuggestionsStream(),
       builder: (context, snapshot) {
-        print("📊 Estado del snapshot: ${snapshot.connectionState}");
-        
         if (snapshot.hasError) {
-          print("❌ Error: ${snapshot.error}");
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-        
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        
+
         final suggestions = snapshot.data ?? [];
-        
+
         if (suggestions.isEmpty) {
-          print("⚠️ No hay datos");
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text("No hay sugerencias registradas."),
-              ],
-            ),
-          );
+          return const Center(child: Text("No hay sugerencias registradas."));
         }
 
-        print("✅ Sugerencias cargadas: ${suggestions.length}");
-        
         return ListView.builder(
           itemCount: suggestions.length,
           itemBuilder: (context, index) {
-            final suggestion = suggestions[index];
-            print("📱 Item $index: ${suggestion.mensajeCorto}");
-            return _buildSuggestionItem(suggestion);
+            return _buildSuggestionItem(suggestions[index]);
           },
         );
       },
@@ -205,69 +203,81 @@ class _SuggestionsViewState extends State<SuggestionsView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: customAppBar('SUGERENCIAS'),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _controller.deviceId == null
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _controller.deviceId == null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _controller.errorMessage ?? 'Error al cargar el dispositivo',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      ElevatedButton(
-                        onPressed: _loadData,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                )
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _controller.errorMessage ??
+                          'Error al cargar el dispositivo',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    ElevatedButton(
+                      onPressed: _loadData,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              )
               : Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Recomendaciones:',
-                            style: TextStyle(
-                              fontSize: 20,
-                              color: Colors.blue,
-                              fontWeight: FontWeight.w500,
-                            ),
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Recomendaciones:',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
                           ),
-                          Text(
-                            'ID: ${_controller.deviceId?.substring(0, min(_controller.deviceId!.length, 6))}...',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        Text(
+                          'ID: ${_controller.deviceId?.substring(0, min(_controller.deviceId!.length, 6))}...',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Expanded(child: _buildSuggestionList()),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _vaciar,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(5.0),
-                            ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    Expanded(child: _buildSuggestionList()),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _vaciar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Text('Vaciar', style: TextStyle(fontSize: 16)),
+                        ),
+                        child: const Text(
+                          'Vaciar',
+                          style: TextStyle(fontSize: 16),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      const FloatingBackButton(route: '/home'),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    const FloatingBackButton(route: '/home'),
+                  ],
                 ),
+              ),
     );
   }
 }

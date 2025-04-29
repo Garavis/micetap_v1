@@ -14,11 +14,11 @@ class HistoryView extends StatefulWidget {
 
 class _HistoryViewState extends State<HistoryView> {
   final HistoryController _controller = HistoryController();
-  
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // Obtener el ID del dispositivo de los argumentos
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args != null && args is String) {
@@ -26,20 +26,24 @@ class _HistoryViewState extends State<HistoryView> {
       _cargarDatos();
     }
   }
-  
+
   // Método para cargar datos y actualizar la UI
   Future<void> _cargarDatos() async {
+    if (!mounted) return;
+
     setState(() {
       _controller.isLoading = true;
     });
-    
+
     await _controller.cargarDatos();
-    
+
+    if (!mounted) return;
+
     setState(() {
       _controller.isLoading = false;
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,68 +58,70 @@ class _HistoryViewState extends State<HistoryView> {
             if (_controller.deviceId != null)
               Text(
                 'Dispositivo: ${_controller.deviceId}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.grey[600],
+                  color: Colors.grey,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Filtro de período
             Row(
               children: [
                 const Text(
                   'Período:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _controller.selectedPeriod,
                     isExpanded: true,
-                    onChanged: (String? newValue) {
+                    onChanged: (String? newValue) async {
                       if (newValue != null) {
-                        setState(() {
-                          _controller.cambiarPeriodo(newValue).then((_) {
-                            setState(() {});
-                          });
-                        });
+                        await _controller.cambiarPeriodo(newValue);
+                        if (mounted) setState(() {});
                       }
                     },
-                    items: _controller.periodOptions.map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
+                    items:
+                        _controller.periodOptions.map<DropdownMenuItem<String>>(
+                          (String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          },
+                        ).toList(),
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Gráfico de consumo
             Expanded(
-              child: _controller.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _controller.consumoData.isEmpty
-                      ? const Center(child: Text('No hay datos disponibles para el período seleccionado'))
+              child:
+                  _controller.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _controller.consumoData.isEmpty
+                      ? const Center(
+                        child: Text(
+                          'No hay datos disponibles para el período seleccionado',
+                        ),
+                      )
                       : _buildConsumoChart(),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Resumen de consumo
             if (!_controller.isLoading && _controller.consumoData.isNotEmpty)
               _buildConsumoSummary(),
-              
-            // Añadido el FloatingBackButton
+
+            // FloatingBackButton
             const SizedBox(height: 20),
             const FloatingBackButton(route: '/home'),
           ],
@@ -123,7 +129,7 @@ class _HistoryViewState extends State<HistoryView> {
       ),
     );
   }
-  
+
   Widget _buildConsumoChart() {
     // Determinar el valor máximo de consumo
     double maxY = 0;
@@ -132,12 +138,12 @@ class _HistoryViewState extends State<HistoryView> {
         maxY = dato.consumo;
       }
     }
-  
+
     // Añadir un 20% extra de espacio
     maxY = maxY * 1.2;
     // Establecer un mínimo razonable
     maxY = maxY < 1.0 ? 1.0 : maxY;
-  
+
     // Definir el intervalo dinámico para el eje Y
     double yInterval;
     if (maxY <= 1.5) {
@@ -149,7 +155,7 @@ class _HistoryViewState extends State<HistoryView> {
     } else {
       yInterval = 2.0;
     }
-  
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
       child: LineChart(
@@ -162,10 +168,10 @@ class _HistoryViewState extends State<HistoryView> {
           ),
           titlesData: FlTitlesData(
             show: true,
-            rightTitles: AxisTitles(
+            rightTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
             ),
-            topTitles: AxisTitles(
+            topTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
             ),
             bottomTitles: AxisTitles(
@@ -174,7 +180,8 @@ class _HistoryViewState extends State<HistoryView> {
                 reservedSize: 30,
                 interval: _getChartInterval(),
                 getTitlesWidget: (value, meta) {
-                  if (value.toInt() >= 0 && value.toInt() < _controller.consumoData.length) {
+                  if (value.toInt() >= 0 &&
+                      value.toInt() < _controller.consumoData.length) {
                     final fecha = _controller.consumoData[value.toInt()].fecha;
                     return Padding(
                       padding: const EdgeInsets.only(top: 8.0),
@@ -227,14 +234,9 @@ class _HistoryViewState extends State<HistoryView> {
               ),
               barWidth: 3,
               isStrokeCapRound: true,
-              dotData: FlDotData(
+              dotData: const FlDotData(
                 show: true,
-                getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                  radius: 4,
-                  color: Colors.blue,
-                  strokeWidth: 1,
-                  strokeColor: Colors.white,
-                ),
+                getDotPainter: _getDotPainter,
               ),
               belowBarData: BarAreaData(
                 show: true,
@@ -253,7 +255,15 @@ class _HistoryViewState extends State<HistoryView> {
       ),
     );
   }
-  
+
+  static FlDotCirclePainter _getDotPainter(spot, percent, barData, index) =>
+      FlDotCirclePainter(
+        radius: 4,
+        color: Colors.blue,
+        strokeWidth: 1,
+        strokeColor: Colors.white,
+      );
+
   double _getChartInterval() {
     if (_controller.consumoData.length <= 12) {
       return 1;
@@ -263,7 +273,7 @@ class _HistoryViewState extends State<HistoryView> {
       return (_controller.consumoData.length / 6).ceil().toDouble();
     }
   }
-  
+
   List<FlSpot> _getFlSpots() {
     List<FlSpot> spots = [];
     for (int i = 0; i < _controller.consumoData.length; i++) {
@@ -271,7 +281,7 @@ class _HistoryViewState extends State<HistoryView> {
     }
     return spots;
   }
-  
+
   String _formatDate(DateTime fecha) {
     if (_controller.selectedPeriod == 'Día') {
       return DateFormat('HH:mm').format(fecha);
@@ -281,8 +291,12 @@ class _HistoryViewState extends State<HistoryView> {
       return DateFormat('dd/MM').format(fecha);
     }
   }
-  
+
   Widget _buildConsumoSummary() {
+    final total = _controller.getConsumoTotal();
+    final promedio = _controller.getConsumoPromedio();
+    final maximo = _controller.getConsumoMaximo();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -300,14 +314,26 @@ class _HistoryViewState extends State<HistoryView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildSummaryItem('Total', '${_controller.getConsumoTotal().toStringAsFixed(2)} kWh', Colors.blue),
-          _buildSummaryItem('Promedio', '${_controller.getConsumoPromedio().toStringAsFixed(2)} kWh', Colors.green),
-          _buildSummaryItem('Máximo', '${_controller.getConsumoMaximo().toStringAsFixed(2)} kWh', Colors.orange),
+          _buildSummaryItem(
+            'Total',
+            '${total.toStringAsFixed(2)} kWh',
+            Colors.blue,
+          ),
+          _buildSummaryItem(
+            'Promedio',
+            '${promedio.toStringAsFixed(2)} kWh',
+            Colors.green,
+          ),
+          _buildSummaryItem(
+            'Máximo',
+            '${maximo.toStringAsFixed(2)} kWh',
+            Colors.orange,
+          ),
         ],
       ),
     );
   }
-  
+
   Widget _buildSummaryItem(String title, String value, Color color) {
     return Column(
       children: [

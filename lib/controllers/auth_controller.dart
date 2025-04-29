@@ -18,11 +18,19 @@ class AuthController {
         password: password,
       );
 
-      // Guardar el usuario con su deviceId
+      final now = DateTime.now().toString();
+
+      // Guardar el usuario con su deviceId y datos adicionales
       await _firestore.collection('usuarios').doc(cred.user!.uid).set({
         'email': email,
         'nombre': name,
         'deviceId': deviceId,
+        'createdAt': now,
+        'lastLogin': now,
+        'additionalInfo': {
+          'appVersion': '1.0.0',
+          'registrationCompleted': true,
+        },
       });
 
       // Crear el dispositivo en Firestore si no existe
@@ -30,24 +38,50 @@ class AuthController {
       final exists = await deviceDoc.get();
 
       if (!exists.exists) {
-        await deviceDoc.set({'consumo': 0.0, 'nombre': name});
+        await deviceDoc.set({
+          'consumo': 0.0,
+          'nombre': name,
+          'activationDate': now,
+        });
       }
 
       return true;
     } catch (e) {
-      print('Error al registrar: $e');
       return false;
     }
   }
 
-  // Login
+  // Login con actualización de lastLogin
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Actualizar fecha de último inicio de sesión
+      if (userCredential.user != null) {
+        await _firestore
+            .collection('usuarios')
+            .doc(userCredential.user!.uid)
+            .update({'lastLogin': DateTime.now().toString()});
+      }
+
       return {'success': true, 'message': ''};
     } catch (e) {
-      print('Error al iniciar sesión: $e');
-      return {'success': false, 'message': 'Credenciales incorrectas'};
+      String errorMessage = 'Credenciales incorrectas';
+
+      if (e is FirebaseAuthException) {
+        if (e.code == 'user-not-found') {
+          errorMessage = 'No existe una cuenta con este correo electrónico';
+        } else if (e.code == 'wrong-password') {
+          errorMessage = 'Contraseña incorrecta';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Formato de correo electrónico inválido';
+        }
+      }
+
+      return {'success': false, 'message': errorMessage};
     }
   }
 
@@ -60,9 +94,10 @@ class AuthController {
     return doc.data()?['deviceId'];
   }
 
-  Future<void> logout() async => _auth.signOut();
+  // Cerrar sesión
+  Future<void> signOut() async => await _auth.signOut();
 
-  // resetear contraseña
+  // Restablecer contraseña
   Future<Map<String, dynamic>> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -71,7 +106,6 @@ class AuthController {
         'message': 'Se ha enviado un correo para restablecer tu contraseña',
       };
     } catch (e) {
-      print('Error al enviar correo de restablecimiento: $e');
       String errorMessage = 'No se pudo enviar el correo de restablecimiento';
 
       if (e is FirebaseAuthException) {

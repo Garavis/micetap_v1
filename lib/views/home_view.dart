@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/controllers/home_controller.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Necesitarás agregar esta dependencia
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -26,26 +25,31 @@ class _HomeViewState extends State<HomeView> {
 
   Future<void> _loadDeviceId() async {
     try {
-      // Primero intentamos cargar desde SharedPreferences (esto es opcional)
+      // Primero intentamos cargar desde SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      String? savedDeviceId = prefs.getString('deviceId');
-      
-      setState(() {
-        deviceId = savedDeviceId ?? 'MT-2504-98A7'; // Usa el ID guardado o el predeterminado
-        _isLoading = false;
-      });
-      
-      // Importante: Inicializar el stream después de tener el deviceId
+      final savedDeviceId = prefs.getString('deviceId');
+
+      if (mounted) {
+        setState(() {
+          deviceId =
+              savedDeviceId ??
+              'MT-2504-98A7'; // Usa el ID guardado o el predeterminado
+          _isLoading = false;
+        });
+      }
+
+      // Inicializar el stream después de tener el deviceId
       if (deviceId != null) {
         _consumoStream = _controller.getConsumoStream(deviceId!);
       }
     } catch (e) {
-      print("Error al cargar deviceId: $e");
-      setState(() {
-        deviceId = 'MT-2504-98A7'; // Fallback al ID predeterminado
-        _consumoStream = _controller.getConsumoStream(deviceId!);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          deviceId = 'MT-2504-98A7'; // Fallback al ID predeterminado
+          _consumoStream = _controller.getConsumoStream(deviceId!);
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -62,8 +66,8 @@ class _HomeViewState extends State<HomeView> {
           deviceId = args;
           _consumoStream = _controller.getConsumoStream(deviceId!);
         });
-        
-        // Opcional: guardar en SharedPreferences para futura referencia
+
+        // Guardar en SharedPreferences para futura referencia
         SharedPreferences.getInstance().then((prefs) {
           prefs.setString('deviceId', deviceId!);
         });
@@ -76,121 +80,147 @@ class _HomeViewState extends State<HomeView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: customAppBar('MICETAP'),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Grid de opciones
-                  Expanded(
-                    child: GridView.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 15,
-                      childAspectRatio: 0.85,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _buildMenuCard(
-                          title: 'Historial',
-                          imagePath: 'assets/images/home/history.png',
-                          onTap: () {
-                            Navigator.pushNamed(context, '/history', arguments: deviceId);
-                          },
-                        ),    
-                        _buildMenuCard(
-                          title: 'Alertas',
-                          imagePath: 'assets/images/home/alert.png',
-                          onTap: () {
-                            Navigator.pushNamed(context, '/alerts', arguments: deviceId);
-                          },
-                        ),
-                        _buildMenuCard(
-                          title: 'Sugerencias',
-                          imagePath: 'assets/images/home/suge.png',
-                          onTap: () {
-                            Navigator.pushNamed(context, '/suggestions', arguments: deviceId);
-                          },
-                        ),
-                        _buildMenuCard(
-                          title: 'Configuración',
-                          imagePath: 'assets/images/home/config.png',
-                          onTap: () {
-                            Navigator.pushNamed(context, '/config', arguments: deviceId);
-                          },
-                        ),
-                      ],
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 20,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Grid de opciones
+                    Expanded(
+                      child: GridView.count(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 15,
+                        mainAxisSpacing: 15,
+                        childAspectRatio: 0.85,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildMenuCard(
+                            title: 'Historial',
+                            imagePath: 'assets/images/home/history.png',
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/history',
+                                arguments: deviceId,
+                              );
+                            },
+                          ),
+                          _buildMenuCard(
+                            title: 'Alertas',
+                            imagePath: 'assets/images/home/alert.png',
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/alerts',
+                                arguments: deviceId,
+                              );
+                            },
+                          ),
+                          _buildMenuCard(
+                            title: 'Sugerencias',
+                            imagePath: 'assets/images/home/suge.png',
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/suggestions',
+                                arguments: deviceId,
+                              );
+                            },
+                          ),
+                          _buildMenuCard(
+                            title: 'Configuración',
+                            imagePath: 'assets/images/home/config.png',
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/config',
+                                arguments: deviceId,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  
-                  // Indicador de consumo
-                  if (_consumoStream != null)
-                    StreamBuilder<DocumentSnapshot>(
-                      stream: _consumoStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
 
-                        if (!snapshot.hasData || !snapshot.data!.exists) {
-                          return const Text(
-                            "No se encontró información del dispositivo",
-                            style: TextStyle(color: Colors.red),
-                            textAlign: TextAlign.center,
+                    // Indicador de consumo
+                    if (_consumoStream != null)
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: _consumoStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              !snapshot.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          if (!snapshot.hasData || !snapshot.data!.exists) {
+                            return const Text(
+                              "No se encontró información del dispositivo",
+                              style: TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            );
+                          }
+
+                          final consumo = _controller.getConsumoFromSnapshot(
+                            snapshot.data!,
                           );
-                        }
 
-                        final consumo = _controller.getConsumoFromSnapshot(snapshot.data!);
-
-                        return Column(
-                          children: [
-                            const Text(
-                              'Consumo Actual kWh:',
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.w500,
+                          return Column(
+                            children: [
+                              const Text(
+                                'Consumo Actual kWh:',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              consumo.toStringAsFixed(5).padLeft(8, '0'),
-                              style: const TextStyle(
-                                fontSize: 20,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
+                              const SizedBox(height: 5),
+                              Text(
+                                consumo.toStringAsFixed(5).padLeft(8, '0'),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            // ID del dispositivo (para depuración)
-                            Text(
-                              'ID: $deviceId',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                              // ID del dispositivo
+                              Text(
+                                'ID: $deviceId',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 50),
-                            Text(
-                              '©Powered by: Garavis A, Paz H',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w400,
+                              const SizedBox(height: 50),
+                              const Text(
+                                '©Powered by: Garavis A, Paz H',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w400,
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                ],
+                            ],
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -201,9 +231,7 @@ class _HomeViewState extends State<HomeView> {
   }) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       color: Colors.grey[50],
       child: InkWell(
         onTap: onTap,
