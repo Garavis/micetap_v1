@@ -13,7 +13,7 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final AuthController _authController = AuthController();
-  
+
   // Estados de carga separados para cada botón
   bool _isLoginLoading = false;
   bool _isRegisterLoading = false;
@@ -25,42 +25,38 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
-void _handleLogin() async {
-  if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Por favor completa todos los campos')),
+  void _handleLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor completa todos los campos')),
+      );
+      return;
+    }
+
+    setState(() => _isLoginLoading = true);
+    final result = await _authController.login(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
     );
-    return;
+
+    if (result['success']) {
+      final deviceId = await _authController.getDeviceId();
+
+      if (deviceId != null) {
+        // Guardar en memoria o pasarlo por navegación
+        Navigator.pushReplacementNamed(context, '/home', arguments: deviceId);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al obtener ID del dispositivo')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result['message'])));
+    }
+    setState(() => _isLoginLoading = false);
   }
-
-  setState(() => _isLoginLoading = true);
-  final result = await _authController.login(
-    _emailController.text.trim(),
-    _passwordController.text.trim(),
-  );
-
-if (result['success']) {
-  final deviceId = await _authController.getDeviceId();
-
-  if (deviceId != null) {
-    // Guardar en memoria o pasarlo por navegación
-    Navigator.pushReplacementNamed(
-      context,
-      '/home',
-      arguments: deviceId,
-    );
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Error al obtener ID del dispositivo')),
-    );
-  }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result['message'])),
-    );
-}
-  setState(() => _isLoginLoading = false);
-}
 
   void _handleRegister() {
     Navigator.pushNamed(context, '/register');
@@ -91,7 +87,7 @@ if (result['success']) {
   Widget build(BuildContext context) {
     // Obtenemos el tamaño de la pantalla para mejor distribución
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -104,8 +100,7 @@ if (result['success']) {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-
-                // Sección del logo 
+                // Sección del logo
                 Container(
                   margin: EdgeInsets.only(top: screenHeight * 0.05),
                   child: Column(
@@ -127,21 +122,28 @@ if (result['success']) {
                     ],
                   ),
                 ),
-                
+
                 // Sección de formulario
                 Container(
                   margin: EdgeInsets.only(top: screenHeight * 0.05),
                   child: Column(
                     children: [
                       // Campo de usuario/correo
-                      textfieldcampos(Controller: _emailController, text: 'Usuario o Correo Electronico'),
+                      textfieldcampos(
+                        Controller: _emailController,
+                        text: 'Usuario o Correo Electronico',
+                      ),
                       const SizedBox(height: 20),
                       // Campo de contraseña
-                      textfieldcampos(Controller: _passwordController, text: 'Contrseña', isPassword: true),
+                      textfieldcampos(
+                        Controller: _passwordController,
+                        text: 'Contrseña',
+                        isPassword: true,
+                      ),
                     ],
                   ),
                 ),
-                
+
                 // Sección de botones
                 Container(
                   margin: EdgeInsets.only(top: screenHeight * 0.05),
@@ -160,23 +162,27 @@ if (result['success']) {
                               borderRadius: BorderRadius.circular(5.0),
                             ),
                           ),
-                          child: _isLoginLoading
-                              ? CircularProgressIndicator(color: Colors.white)
-                              : Text(
-                                  'Iniciar Sesión',
-                                  style: TextStyle(fontSize: 16),
-                                ),
+                          child:
+                              _isLoginLoading
+                                  ? CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                  : Text(
+                                    'Iniciar Sesión',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
                         ),
                       ),
-                      
+
                       SizedBox(height: 15),
-                      
+
                       // Botón de registro
                       SizedBox(
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _isRegisterLoading ? null : _handleRegister,
+                          onPressed:
+                              _isRegisterLoading ? null : _handleRegister,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
@@ -184,18 +190,33 @@ if (result['success']) {
                               borderRadius: BorderRadius.circular(5.0),
                             ),
                           ),
-                          child: _isRegisterLoading
-                              ? CircularProgressIndicator(color: Colors.white)
-                              : Text(
-                                  'Registrarse',
-                                  style: TextStyle(fontSize: 16),
-                                ),
+                          child:
+                              _isRegisterLoading
+                                  ? CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                  : Text(
+                                    'Registrarse',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                
+                // Añadir en login_view.dart después de los campos de texto
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/reset-password');
+                    },
+                    child: const Text(
+                      '¿Olvidaste tu contraseña?',
+                      style: TextStyle(color: Colors.blue, fontSize: 14),
+                    ),
+                  ),
+                ),
                 // Espacio en la parte inferior
                 SizedBox(height: screenHeight * 0.1),
               ],
