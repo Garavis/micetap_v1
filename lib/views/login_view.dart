@@ -3,7 +3,7 @@ import 'package:micetap_v1/widgets/texfieldregistros.dart';
 import '../controllers/auth_controller.dart';
 
 class LoginView extends StatefulWidget {
-  const LoginView({Key? key}) : super(key: key);
+  const LoginView({super.key});
 
   @override
   _LoginViewState createState() => _LoginViewState();
@@ -16,7 +16,7 @@ class _LoginViewState extends State<LoginView> {
 
   // Estados de carga separados para cada botón
   bool _isLoginLoading = false;
-  bool _isRegisterLoading = false;
+  final bool _isRegisterLoading = false;
 
   @override
   void dispose() {

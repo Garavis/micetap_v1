@@ -5,7 +5,7 @@ import 'package:micetap_v1/widgets/texfieldregistros.dart';
 import '../controllers/auth_controller.dart';
 
 class RegisterView extends StatefulWidget {
-  const RegisterView({Key? key}) : super(key: key);
+  const RegisterView({super.key});
 
   @override
   _RegisterViewState createState() => _RegisterViewState();
@@ -31,57 +31,57 @@ class _RegisterViewState extends State<RegisterView> {
   }
 
   void _handleRegister() async {
-  if (_nameController.text.isEmpty || 
-      _emailController.text.isEmpty || 
-      _passwordController.text.isEmpty ||
-      _idDevice.text.isEmpty ||
-      _passwordAccess.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Por favor completa todos los campos')),
-    );
-    return;
-  }
-
-  if (_passwordAccess.text != '1109') {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Contraseña Administrativa no válida')),
-    );
-    return;
-  }
-
-  setState(() => _isLoading = true);
-
-  try {
-    final result = await _authController.register(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-      _nameController.text.trim(),
-      _idDevice.text.trim(),
-    );
-
-    if (result) {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _idDevice.text.isEmpty ||
+        _passwordAccess.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro exitoso')),
+        const SnackBar(content: Text('Por favor completa todos los campos')),
       );
-      Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo registrar.')),
-      );
+      return;
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error en el registro: ${e.toString()}')),
-    );
-  } finally {
-    setState(() => _isLoading = false);
+
+    if (_passwordAccess.text != '1109') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contraseña Administrativa no válida')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await _authController.register(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+        _nameController.text.trim(),
+        _idDevice.text.trim(),
+      );
+
+      if (result) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Registro exitoso')));
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No se pudo registrar.')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error en el registro: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    
+
     return Scaffold(
       appBar: customAppBar('Registro'),
       backgroundColor: Colors.white,
@@ -91,13 +91,9 @@ class _RegisterViewState extends State<RegisterView> {
           child: Column(
             children: [
               SizedBox(height: screenHeight * 0.05),
-              
+
               // Logo
-              Image.asset(
-                'assets/images/MICETAP.png',
-                height: 80,
-                width: 80,
-              ),
+              Image.asset('assets/images/MICETAP.png', height: 80, width: 80),
               const SizedBox(height: 10),
               const Text(
                 'MICETAP',
@@ -107,20 +103,34 @@ class _RegisterViewState extends State<RegisterView> {
                   color: Colors.blue,
                 ),
               ),
-              
+
               SizedBox(height: screenHeight * 0.02),
               // Formulario de registro
-              textfieldcampos(Controller: _nameController, text: 'Nombre completo'),
+              textfieldcampos(
+                Controller: _nameController,
+                text: 'Nombre completo',
+              ),
               const SizedBox(height: 15),
-              textfieldcampos(Controller: _emailController, text: 'Correo Electrónico'),
+              textfieldcampos(
+                Controller: _emailController,
+                text: 'Correo Electrónico',
+              ),
               const SizedBox(height: 15),
-              textfieldcampos(Controller: _passwordController, text: 'Contraseña', isPassword: true),
+              textfieldcampos(
+                Controller: _passwordController,
+                text: 'Contraseña',
+                isPassword: true,
+              ),
               const SizedBox(height: 15),
               textfieldcampos(Controller: _idDevice, text: 'Id de Dispositivo'),
               const SizedBox(height: 15),
-              textfieldcampos(Controller: _passwordAccess, text: 'Clave Administrativa', isPassword: true),
+              textfieldcampos(
+                Controller: _passwordAccess,
+                text: 'Clave Administrativa',
+                isPassword: true,
+              ),
               SizedBox(height: screenHeight * 0.02),
-              
+
               // Botón de registro
               SizedBox(
                 width: double.infinity,
@@ -134,17 +144,14 @@ class _RegisterViewState extends State<RegisterView> {
                       borderRadius: BorderRadius.circular(5.0),
                     ),
                   ),
-                  child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          'Registrarse',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                  child:
+                      _isLoading
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text('Registrarse', style: TextStyle(fontSize: 16)),
                 ),
               ),
               SizedBox(height: screenHeight * 0.05),
               const FloatingBackButton(route: '/'),
-
             ],
           ),
         ),
@@ -152,4 +159,3 @@ class _RegisterViewState extends State<RegisterView> {
     );
   }
 }
-

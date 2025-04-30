@@ -6,7 +6,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
 class ConfigView extends StatefulWidget {
-  const ConfigView({Key? key}) : super(key: key);
+  const ConfigView({super.key});
 
   @override
   _ConfigViewState createState() => _ConfigViewState();
@@ -249,15 +249,20 @@ class _ConfigViewState extends State<ConfigView> {
                   ),
 
                   const SizedBox(height: 30),
-
-                  // Botón de cerrar sesión
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
                       onPressed: () async {
                         await _controller.signOut();
-                        Navigator.pushReplacementNamed(context, '/');
+                        // Usar pushNamedAndRemoveUntil para eliminar todas las rutas anteriores
+                        // y evitar que se pueda volver al home sin iniciar sesión
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/', // Ruta hacia la pantalla de login
+                          (route) =>
+                              false, // Esto elimina todas las rutas anteriores
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,

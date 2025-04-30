@@ -6,7 +6,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
 class HistoryView extends StatefulWidget {
-  const HistoryView({Key? key}) : super(key: key);
+  const HistoryView({super.key});
 
   @override
   _HistoryViewState createState() => _HistoryViewState();

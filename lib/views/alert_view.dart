@@ -6,7 +6,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
 class AlertsView extends StatefulWidget {
-  const AlertsView({Key? key}) : super(key: key);
+  const AlertsView({super.key});
 
   @override
   _AlertsViewState createState() => _AlertsViewState();

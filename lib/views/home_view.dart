@@ -5,7 +5,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeView extends StatefulWidget {
-  const HomeView({Key? key}) : super(key: key);
+  const HomeView({super.key});
 
   @override
   _HomeViewState createState() => _HomeViewState();

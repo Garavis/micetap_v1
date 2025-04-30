@@ -5,7 +5,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 // Ya no importamos buttonback.dart
 
 class ResetPasswordView extends StatefulWidget {
-  const ResetPasswordView({Key? key}) : super(key: key);
+  const ResetPasswordView({super.key});
 
   @override
   _ResetPasswordViewState createState() => _ResetPasswordViewState();

@@ -6,7 +6,7 @@ import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
 
 class SuggestionsView extends StatefulWidget {
-  const SuggestionsView({Key? key}) : super(key: key);
+  const SuggestionsView({super.key});
 
   @override
   _SuggestionsViewState createState() => _SuggestionsViewState();

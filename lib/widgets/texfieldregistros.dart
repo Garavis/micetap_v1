@@ -6,11 +6,11 @@ class textfieldcampos extends StatefulWidget {
   final TextEditingController Controller;
 
   const textfieldcampos({
-    Key? key,
+    super.key,
     required this.Controller,
     required this.text,
     this.isPassword = false,
-  }) : super(key: key);
+  });
 
   @override
   _textfieldcamposState createState() => _textfieldcamposState();
@@ -29,18 +29,19 @@ class _textfieldcamposState extends State<textfieldcampos> {
         border: OutlineInputBorder(),
         filled: true,
         fillColor: Colors.white,
-        suffixIcon: widget.isPassword
-            ? IconButton(
-                icon: Icon(
-                  _obscureText ? Icons.visibility_off : Icons.visibility,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _obscureText = !_obscureText;
-                  });
-                },
-              )
-            : null,
+        suffixIcon:
+            widget.isPassword
+                ? IconButton(
+                  icon: Icon(
+                    _obscureText ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureText = !_obscureText;
+                    });
+                  },
+                )
+                : null,
       ),
     );
   }
