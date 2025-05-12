@@ -15,8 +15,15 @@ class AlertsController {
   // Variable para almacenar las alertas actuales
   List<Alert> _currentAlerts = [];
 
+  // Variable para controlar el estado de eliminación
+  bool _isDeleting = false;
+
   // Getters
   List<Alert> get currentAlerts => _currentAlerts;
+  bool get isDeleting => _isDeleting;
+
+  // Setter para el estado de eliminación
+  set isDeleting(bool value) => _isDeleting = value;
 
   // Obtener el deviceId del usuario actual
   Future<String?> loadDeviceId() async {
@@ -57,7 +64,10 @@ class AlertsController {
     _currentAlerts =
         filtered.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return Alert.fromFirestore(data);
+          final alert = Alert.fromFirestore(data);
+          alert.docId =
+              doc.id; // Guardar el ID del documento para la eliminación
+          return alert;
         }).toList();
 
     return _currentAlerts;
@@ -68,9 +78,53 @@ class AlertsController {
     return _model.getAlertsStream();
   }
 
-  // Vaciar alertas
-  Future<void> clearAlerts(String deviceId) async {
-    await _model.deleteAlertsByDeviceId(deviceId);
+  // Vaciar alertas con animación progresiva
+  Future<void> clearAlerts(
+    String deviceId,
+    Function(int, int) onProgress,
+  ) async {
+    if (_isDeleting) return; // Prevenir múltiples eliminaciones simultáneas
+
+    _isDeleting = true;
+    final totalItems = _currentAlerts.length;
+    int deletedItems = 0;
+
+    try {
+      // Ordenamos las alertas por fecha más reciente primero (para eliminar de arriba a abajo)
+      _currentAlerts.sort((a, b) {
+        if (a.dateTime == null || b.dateTime == null) return 0;
+        return b.dateTime!.compareTo(a.dateTime!);
+      });
+
+      for (final alert in _currentAlerts) {
+        if (alert.docId != null) {
+          await _firestore.collection('alertas').doc(alert.docId).delete();
+          deletedItems++;
+          onProgress(deletedItems, totalItems); // Actualizamos el progreso
+
+          // Pequeña pausa para hacer visible la eliminación progresiva
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
+      }
+
+      // Eliminar cualquier alerta restante que pueda no tener ID
+      final batch = _firestore.batch();
+      final snapshot =
+          await _firestore
+              .collection('alertas')
+              .where('deviceId', isEqualTo: deviceId)
+              .get();
+
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+    } catch (e) {
+      print('Error al eliminar alertas: $e');
+    } finally {
+      _isDeleting = false;
+    }
   }
 
   // Exportar alertas a CSV

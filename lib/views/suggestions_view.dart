@@ -12,14 +12,37 @@ class SuggestionsView extends StatefulWidget {
   _SuggestionsViewState createState() => _SuggestionsViewState();
 }
 
-class _SuggestionsViewState extends State<SuggestionsView> {
+class _SuggestionsViewState extends State<SuggestionsView>
+    with TickerProviderStateMixin {
   final SuggestionController _controller = SuggestionController();
   bool _isLoading = true;
+
+  // Variables para el progreso de eliminación
+  int _totalSuggestions = 0;
+  int _deletedSuggestions = 0;
+  bool _showProgress = false;
+
+  // Controller para las animaciones
+  late AnimationController _progressController;
+
+  // Lista de claves globales para el animatedList
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  List<SuggestionModel> _currentSuggestions = [];
 
   @override
   void initState() {
     super.initState();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -37,9 +60,75 @@ class _SuggestionsViewState extends State<SuggestionsView> {
   }
 
   Future<void> _vaciar() async {
-    final error = await _controller.deleteAllSuggestions();
+    if (_controller.isDeleting) return; // Prevenir múltiples eliminaciones
+
+    // Mostrar diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Vaciar sugerencias'),
+            content: const Text(
+              '¿Estás seguro de que deseas eliminar todas las sugerencias? Esta acción no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmar != true) return;
+
+    setState(() {
+      _showProgress = true;
+      _totalSuggestions = _currentSuggestions.length;
+      _deletedSuggestions = 0;
+      _progressController.forward(from: 0.0);
+    });
+
+    final error = await _controller.deleteAllSuggestions((deleted, total) {
+      if (mounted) {
+        setState(() {
+          _deletedSuggestions = deleted;
+          _progressController.value = deleted / total;
+
+          // Si tenemos la lista actual, podemos animar la eliminación de los elementos
+          if (deleted <= _currentSuggestions.length &&
+              _listKey.currentState != null) {
+            // Animamos la eliminación del elemento más reciente (de arriba a abajo)
+            _listKey.currentState!.removeItem(
+              0,
+              (context, animation) => _buildAnimatedSuggestionItem(
+                _currentSuggestions[0],
+                animation,
+              ),
+              duration: const Duration(milliseconds: 200),
+            );
+
+            // Eliminamos el elemento de nuestra lista local
+            if (_currentSuggestions.isNotEmpty) {
+              _currentSuggestions.removeAt(0);
+            }
+          }
+        });
+      }
+    });
+
+    // Pequeña pausa para que se vea que ha terminado al 100%
+    await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
+
+    setState(() {
+      _showProgress = false;
+    });
 
     if (error == null) {
       ScaffoldMessenger.of(
@@ -120,6 +209,19 @@ class _SuggestionsViewState extends State<SuggestionsView> {
     );
   }
 
+  Widget _buildAnimatedSuggestionItem(
+    SuggestionModel suggestion,
+    Animation<double> animation,
+  ) {
+    return SizeTransition(
+      sizeFactor: animation,
+      child: FadeTransition(
+        opacity: animation,
+        child: _buildSuggestionItem(suggestion),
+      ),
+    );
+  }
+
   Widget _buildSuggestionItem(SuggestionModel suggestion) {
     final IconData icon;
     final Color iconColor;
@@ -171,30 +273,68 @@ class _SuggestionsViewState extends State<SuggestionsView> {
   }
 
   Widget _buildSuggestionList() {
-    return StreamBuilder<List<SuggestionModel>>(
-      stream: _controller.getSuggestionsStream(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text("Error: ${snapshot.error}"));
-        }
+    return Column(
+      children: [
+        if (_showProgress)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              children: [
+                AnimatedBuilder(
+                  animation: _progressController,
+                  builder:
+                      (context, _) => LinearProgressIndicator(
+                        value: _progressController.value,
+                        backgroundColor: Colors.grey[300],
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Eliminando... $_deletedSuggestions de $_totalSuggestions',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: StreamBuilder<List<SuggestionModel>>(
+            stream: _controller.getSuggestionsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-        final suggestions = snapshot.data ?? [];
+              final suggestions = snapshot.data ?? [];
 
-        if (suggestions.isEmpty) {
-          return const Center(child: Text("No hay sugerencias registradas."));
-        }
+              // Actualizar nuestra lista actual para las animaciones
+              _currentSuggestions = suggestions;
 
-        return ListView.builder(
-          itemCount: suggestions.length,
-          itemBuilder: (context, index) {
-            return _buildSuggestionItem(suggestions[index]);
-          },
-        );
-      },
+              if (suggestions.isEmpty) {
+                return const Center(
+                  child: Text("No hay sugerencias registradas."),
+                );
+              }
+
+              // Usamos AnimatedList para animar los cambios
+              return AnimatedList(
+                key: _listKey,
+                initialItemCount: suggestions.length,
+                itemBuilder: (context, index, animation) {
+                  return _buildAnimatedSuggestionItem(
+                    suggestions[index],
+                    animation,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -259,18 +399,41 @@ class _SuggestionsViewState extends State<SuggestionsView> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _vaciar,
+                        onPressed: _controller.isDeleting ? null : _vaciar,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor:
+                              _controller.isDeleting
+                                  ? Colors.grey
+                                  : Colors.blue,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'Vaciar',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        child:
+                            _controller.isDeleting
+                                ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Vaciando...',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                  ],
+                                )
+                                : const Text(
+                                  'Vaciar',
+                                  style: TextStyle(fontSize: 16),
+                                ),
                       ),
                     ),
                     const SizedBox(height: 20),

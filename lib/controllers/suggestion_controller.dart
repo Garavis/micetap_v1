@@ -11,6 +11,10 @@ class SuggestionController {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  // Variable para controlar el estado de eliminación
+  bool _isDeleting = false;
+  bool get isDeleting => _isDeleting;
+
   // Cargar el ID del dispositivo desde Firestore
   Future<bool> loadDeviceId() async {
     try {
@@ -61,25 +65,41 @@ class SuggestionController {
         });
   }
 
-  // Eliminar todas las sugerencias del dispositivo
-  Future<String?> deleteAllSuggestions() async {
+  // Eliminar todas las sugerencias del dispositivo con animación progresiva
+  Future<String?> deleteAllSuggestions(Function(int, int) onProgress) async {
     if (_deviceId == null) return "No hay dispositivo seleccionado";
+    if (_isDeleting) return "Ya hay una operación de eliminación en curso";
+
+    _isDeleting = true;
 
     try {
       final snapshot =
           await _firestore
               .collection('sugerencias')
               .where('deviceId', isEqualTo: _deviceId)
+              .orderBy(
+                'fecha',
+                descending: true,
+              ) // Para asegurar que se eliminen de más reciente a más antiguo
               .get();
 
-      final batch = _firestore.batch();
+      final totalItems = snapshot.docs.length;
+      int deletedItems = 0;
+
+      // Eliminar uno por uno para mostrar progreso
       for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
+        await doc.reference.delete();
+        deletedItems++;
+        onProgress(deletedItems, totalItems);
+
+        // Pequeña pausa para hacer visible la eliminación progresiva
+        await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      await batch.commit();
+      _isDeleting = false;
       return null; // Éxito, sin mensaje de error
     } catch (e) {
+      _isDeleting = false;
       return "Error al eliminar sugerencias: $e";
     }
   }

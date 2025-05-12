@@ -95,7 +95,21 @@ class AuthController {
   }
 
   // Cerrar sesión
-  Future<void> signOut() async => await _auth.signOut();
+  Future<void> signOut() async {
+    // Antes de cerrar sesión, actualizamos la fecha de último acceso
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _firestore.collection('usuarios').doc(user.uid).update({
+          'lastLogin': DateTime.now().toString(),
+        });
+      } catch (e) {
+        print('Error al actualizar lastLogin: $e');
+      }
+    }
+
+    await _auth.signOut();
+  }
 
   // Restablecer contraseña
   Future<Map<String, dynamic>> resetPassword(String email) async {

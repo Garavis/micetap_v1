@@ -17,9 +17,7 @@ class ConfigController {
       return Stream.value(UserConfigModel.empty());
     }
 
-    // Actualizar el campo de último inicio de sesión
-    _updateLastLogin(user.uid);
-
+    // Ya no actualizamos el lastLogin aquí, solo leemos la información
     return _firestore.collection('usuarios').doc(user.uid).snapshots().map((
       snapshot,
     ) {
@@ -28,17 +26,6 @@ class ConfigController {
       }
       return UserConfigModel.fromFirestore(user.uid, snapshot.data()!);
     });
-  }
-
-  // Actualizar la fecha de último inicio de sesión
-  Future<void> _updateLastLogin(String uid) async {
-    try {
-      await _firestore.collection('usuarios').doc(uid).update({
-        'lastLogin': DateTime.now().toString(),
-      });
-    } catch (e) {
-      print('Error al actualizar lastLogin: $e');
-    }
   }
 
   // Actualizar información de perfil
@@ -57,6 +44,18 @@ class ConfigController {
 
   // Método para cerrar sesión
   Future<void> signOut() async {
+    // Antes de cerrar sesión, actualizamos la fecha de último acceso
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _firestore.collection('usuarios').doc(user.uid).update({
+          'lastLogin': DateTime.now().toString(),
+        });
+      } catch (e) {
+        print('Error al actualizar lastLogin: $e');
+      }
+    }
+
     await _auth.signOut();
   }
 }

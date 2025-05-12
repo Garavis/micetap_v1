@@ -6,6 +6,7 @@ class UserConfigModel {
   final String createdAt;
   final String lastLogin;
   final String profileType;
+  final int estrato; // Nuevo campo para estrato
   final Map<String, dynamic>? additionalInfo;
 
   UserConfigModel({
@@ -16,6 +17,7 @@ class UserConfigModel {
     this.createdAt = '',
     this.lastLogin = '',
     this.profileType = 'Estándar',
+    this.estrato = 1, // Valor predeterminado: estrato 1
     this.additionalInfo,
   });
 
@@ -27,6 +29,7 @@ class UserConfigModel {
       email: data['email'] ?? 'Sin correo',
       createdAt: data['createdAt'] ?? '',
       lastLogin: data['lastLogin'] ?? '',
+      estrato: data['estrato'] ?? 1, // Extraer estrato o asignar 1 por defecto
       additionalInfo: data['additionalInfo'],
     );
   }

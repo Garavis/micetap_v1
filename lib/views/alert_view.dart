@@ -12,16 +12,34 @@ class AlertsView extends StatefulWidget {
   _AlertsViewState createState() => _AlertsViewState();
 }
 
-class _AlertsViewState extends State<AlertsView> {
+class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
   final AlertsController _controller = AlertsController();
   String? deviceId;
   bool _isLoading = true;
   String? _debugError;
 
+  // Variables para el progreso de eliminación
+  int _totalAlerts = 0;
+  int _deletedAlerts = 0;
+  bool _showProgress = false;
+
+  // Controller para las animaciones
+  late AnimationController _progressController;
+
   @override
   void initState() {
     super.initState();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _loadDeviceId();
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadDeviceId() async {
@@ -60,10 +78,56 @@ class _AlertsViewState extends State<AlertsView> {
 
   void _vaciar() async {
     if (deviceId == null) return;
+    if (_controller.isDeleting) return; // Prevenir múltiples eliminaciones
 
-    await _controller.clearAlerts(deviceId!);
+    // Mostrar diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Vaciar alertas'),
+            content: const Text(
+              '¿Estás seguro de que deseas eliminar todas las alertas? Esta acción no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmar != true) return;
+
+    setState(() {
+      _showProgress = true;
+      _totalAlerts = _controller.currentAlerts.length;
+      _deletedAlerts = 0;
+      _progressController.forward(from: 0.0);
+    });
+
+    await _controller.clearAlerts(deviceId!, (deleted, total) {
+      if (mounted) {
+        setState(() {
+          _deletedAlerts = deleted;
+          _progressController.value = deleted / total;
+        });
+      }
+    });
+
+    // Pequeña pausa para que se vea que ha terminado al 100%
+    await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
+
+    setState(() {
+      _showProgress = false;
+    });
 
     ScaffoldMessenger.of(
       context,
@@ -85,11 +149,34 @@ class _AlertsViewState extends State<AlertsView> {
               ),
             ),
           ),
+        if (_showProgress)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              children: [
+                AnimatedBuilder(
+                  animation: _progressController,
+                  builder:
+                      (context, _) => LinearProgressIndicator(
+                        value: _progressController.value,
+                        backgroundColor: Colors.grey[300],
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Eliminando... $_deletedAlerts de $_totalAlerts',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: _controller.getAlertsStream(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
 
@@ -108,15 +195,26 @@ class _AlertsViewState extends State<AlertsView> {
                 );
               }
 
-              return ListView.builder(
-                itemCount: alertas.length,
-                itemBuilder:
-                    (context, index) => _buildAlertItemCard(alertas[index]),
+              return AnimatedList(
+                initialItemCount: alertas.length,
+                itemBuilder: (context, index, animation) {
+                  return _buildAnimatedAlertItemCard(alertas[index], animation);
+                },
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAnimatedAlertItemCard(Alert alert, Animation<double> animation) {
+    return SizeTransition(
+      sizeFactor: animation,
+      child: FadeTransition(
+        opacity: animation,
+        child: _buildAlertItemCard(alert),
+      ),
     );
   }
 
@@ -217,7 +315,7 @@ class _AlertsViewState extends State<AlertsView> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _exportar,
+                        onPressed: _controller.isDeleting ? null : _exportar,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
@@ -237,18 +335,41 @@ class _AlertsViewState extends State<AlertsView> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _vaciar,
+                        onPressed: _controller.isDeleting ? null : _vaciar,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor:
+                              _controller.isDeleting
+                                  ? Colors.grey
+                                  : Colors.blue,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'Vaciar',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        child:
+                            _controller.isDeleting
+                                ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Vaciando...',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                  ],
+                                )
+                                : const Text(
+                                  'Vaciar',
+                                  style: TextStyle(fontSize: 16),
+                                ),
                       ),
                     ),
                     const SizedBox(height: 20),
