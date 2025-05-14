@@ -23,6 +23,10 @@ class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
   int _deletedAlerts = 0;
   bool _showProgress = false;
 
+  // Lista local de alertas
+  List<Alert> _alertsList = [];
+  bool _isListeningToAlerts = false;
+
   // Controller para las animaciones
   late AnimationController _progressController;
 
@@ -39,6 +43,10 @@ class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
   @override
   void dispose() {
     _progressController.dispose();
+
+    // IMPORTANTE: Detener el stream al salir de la pantalla
+    _controller.dispose();
+
     super.dispose();
   }
 
@@ -57,6 +65,9 @@ class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
         if (fetchedId != null && fetchedId.isNotEmpty) {
           deviceId = fetchedId;
           _isLoading = false;
+
+          // Cargar datos una sola vez al inicio
+          _loadAlerts(fetchedId);
         } else {
           _debugError = "deviceId no encontrado";
           _isLoading = false;
@@ -70,6 +81,21 @@ class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadAlerts(String deviceId) async {
+    if (_isListeningToAlerts) return;
+
+    _isListeningToAlerts = true;
+
+    // Iniciar escucha con callback para actualizar UI
+    _controller.initAlertsListener(deviceId, (alertas) {
+      if (mounted) {
+        setState(() {
+          _alertsList = alertas;
+        });
+      }
+    });
   }
 
   void _exportar() async {
@@ -172,49 +198,21 @@ class _AlertsViewState extends State<AlertsView> with TickerProviderStateMixin {
             ),
           ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _controller.getAlertsStream(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text("No hay alertas registradas."));
-              }
-
-              final alertas = _controller.filterAlertsByDeviceId(
-                snapshot.data!,
-                deviceId,
-              );
-
-              if (alertas.isEmpty) {
-                return const Center(
-                  child: Text("No hay alertas para este dispositivo."),
-                );
-              }
-
-              return AnimatedList(
-                initialItemCount: alertas.length,
-                itemBuilder: (context, index, animation) {
-                  return _buildAnimatedAlertItemCard(alertas[index], animation);
-                },
-              );
-            },
-          ),
+          child:
+              _alertsList.isEmpty
+                  ? const Center(
+                    child: Text(
+                      "No hay alertas registradas para este dispositivo.",
+                    ),
+                  )
+                  : ListView.builder(
+                    itemCount: _alertsList.length,
+                    itemBuilder:
+                        (context, index) =>
+                            _buildAlertItemCard(_alertsList[index]),
+                  ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAnimatedAlertItemCard(Alert alert, Animation<double> animation) {
-    return SizeTransition(
-      sizeFactor: animation,
-      child: FadeTransition(
-        opacity: animation,
-        child: _buildAlertItemCard(alert),
-      ),
     );
   }
 

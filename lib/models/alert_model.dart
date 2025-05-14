@@ -34,11 +34,42 @@ class Alert {
 class AlertsModel {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Método original (mantenido por compatibilidad)
   Stream<QuerySnapshot> getAlertsStream() {
     return _firestore
         .collection('alertas')
         .orderBy('fecha', descending: true)
         .snapshots();
+  }
+
+  // Nuevo método con límite
+  Stream<QuerySnapshot> getAlertsStreamLimited(int limit) {
+    return _firestore
+        .collection('alertas')
+        .orderBy('fecha', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  // Método para obtener alertas por device ID con límite
+  Future<List<Alert>> getAlertsByDeviceIdLimited(
+    String deviceId,
+    int limit,
+  ) async {
+    final snapshot =
+        await _firestore
+            .collection('alertas')
+            .where('deviceId', isEqualTo: deviceId)
+            .orderBy('fecha', descending: true)
+            .limit(limit)
+            .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      final alert = Alert.fromFirestore(data);
+      alert.docId = doc.id;
+      return alert;
+    }).toList();
   }
 
   Future<List<Alert>> getAlertsByDeviceId(String deviceId) async {

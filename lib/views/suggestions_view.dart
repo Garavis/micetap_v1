@@ -25,8 +25,7 @@ class _SuggestionsViewState extends State<SuggestionsView>
   // Controller para las animaciones
   late AnimationController _progressController;
 
-  // Lista de claves globales para el animatedList
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  // Mantenemos la lista sin usar AnimatedList para evitar problemas con índices
   List<SuggestionModel> _currentSuggestions = [];
 
   @override
@@ -42,6 +41,10 @@ class _SuggestionsViewState extends State<SuggestionsView>
   @override
   void dispose() {
     _progressController.dispose();
+
+    // Importante: liberar recursos del controller al salir
+    _controller.dispose();
+
     super.dispose();
   }
 
@@ -50,6 +53,15 @@ class _SuggestionsViewState extends State<SuggestionsView>
 
     if (success) {
       _controller.testQuery();
+
+      // Iniciar escucha de sugerencias con callback para actualizar UI
+      _controller.initSuggestionsListener((suggestions) {
+        if (mounted) {
+          setState(() {
+            _currentSuggestions = suggestions;
+          });
+        }
+      });
     }
 
     if (mounted) {
@@ -98,25 +110,6 @@ class _SuggestionsViewState extends State<SuggestionsView>
         setState(() {
           _deletedSuggestions = deleted;
           _progressController.value = deleted / total;
-
-          // Si tenemos la lista actual, podemos animar la eliminación de los elementos
-          if (deleted <= _currentSuggestions.length &&
-              _listKey.currentState != null) {
-            // Animamos la eliminación del elemento más reciente (de arriba a abajo)
-            _listKey.currentState!.removeItem(
-              0,
-              (context, animation) => _buildAnimatedSuggestionItem(
-                _currentSuggestions[0],
-                animation,
-              ),
-              duration: const Duration(milliseconds: 200),
-            );
-
-            // Eliminamos el elemento de nuestra lista local
-            if (_currentSuggestions.isNotEmpty) {
-              _currentSuggestions.removeAt(0);
-            }
-          }
         });
       }
     });
@@ -128,6 +121,7 @@ class _SuggestionsViewState extends State<SuggestionsView>
 
     setState(() {
       _showProgress = false;
+      _currentSuggestions = []; // Limpiar la lista local después de eliminar
     });
 
     if (error == null) {
@@ -209,19 +203,6 @@ class _SuggestionsViewState extends State<SuggestionsView>
     );
   }
 
-  Widget _buildAnimatedSuggestionItem(
-    SuggestionModel suggestion,
-    Animation<double> animation,
-  ) {
-    return SizeTransition(
-      sizeFactor: animation,
-      child: FadeTransition(
-        opacity: animation,
-        child: _buildSuggestionItem(suggestion),
-      ),
-    );
-  }
-
   Widget _buildSuggestionItem(SuggestionModel suggestion) {
     final IconData icon;
     final Color iconColor;
@@ -298,44 +279,43 @@ class _SuggestionsViewState extends State<SuggestionsView>
             ),
           ),
         Expanded(
-          child: StreamBuilder<List<SuggestionModel>>(
-            stream: _controller.getSuggestionsStream(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final suggestions = snapshot.data ?? [];
-
-              // Actualizar nuestra lista actual para las animaciones
-              _currentSuggestions = suggestions;
-
-              if (suggestions.isEmpty) {
-                return const Center(
-                  child: Text("No hay sugerencias registradas."),
-                );
-              }
-
-              // Usamos AnimatedList para animar los cambios
-              return AnimatedList(
-                key: _listKey,
-                initialItemCount: suggestions.length,
-                itemBuilder: (context, index, animation) {
-                  return _buildAnimatedSuggestionItem(
-                    suggestions[index],
-                    animation,
-                  );
-                },
-              );
-            },
-          ),
+          child:
+              _currentSuggestions.isEmpty
+                  ? const Center(child: Text("No hay sugerencias registradas."))
+                  : ListView.builder(
+                    itemCount: _currentSuggestions.length,
+                    itemBuilder:
+                        (context, index) =>
+                            _buildSuggestionItem(_currentSuggestions[index]),
+                  ),
         ),
       ],
     );
+  }
+
+  // Método para forzar una actualización manual
+  Future<void> _actualizarManualmente() async {
+    if (_controller.deviceId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Cargar sugerencias frescas
+      final suggestions = await _controller.getSuggestionsOnce();
+      setState(() {
+        _currentSuggestions = suggestions;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sugerencias actualizadas correctamente')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al actualizar: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -383,12 +363,27 @@ class _SuggestionsViewState extends State<SuggestionsView>
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        Text(
-                          'ID: ${_controller.deviceId?.substring(0, min(_controller.deviceId!.length, 6))}...',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
+                        Row(
+                          children: [
+                            // Botón para actualizar manualmente
+                            IconButton(
+                              icon: const Icon(
+                                Icons.refresh,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
+                              onPressed:
+                                  _isLoading ? null : _actualizarManualmente,
+                              tooltip: 'Actualizar manualmente',
+                            ),
+                            Text(
+                              'ID: ${_controller.deviceId?.substring(0, min(_controller.deviceId!.length, 6))}...',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

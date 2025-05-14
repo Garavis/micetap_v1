@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math' as Math;
 
 class ConsumoData {
   final DateTime fecha;
@@ -16,15 +17,30 @@ class HistoryModel {
   // Tiempo de actualización
   DateTime _ultimaActualizacion = DateTime.now();
 
+  // Cache de consultas a Firestore
+  Map<String, List<ConsumoData>> _cacheData = {};
+  Map<String, DateTime> _cacheFechas = {};
+
   // Getters
   List<ConsumoData> get consumoData => _consumoData;
   DateTime get ultimaActualizacion => _ultimaActualizacion;
 
-  // Función para cargar datos desde Firestore
+  // Función para cargar datos desde Firestore con optimización de caché
   Future<void> cargarDatosHistoricos(String period) async {
     try {
       if (deviceId == null) {
         throw Exception("ID de dispositivo no disponible");
+      }
+
+      // Clave de caché: deviceId + periodo
+      final cacheKey = "${deviceId!}_$period";
+
+      // Verificar si tenemos datos en caché y son recientes (menos de 30 minutos)
+      if (_cacheData.containsKey(cacheKey) &&
+          _cacheFechas.containsKey(cacheKey) &&
+          DateTime.now().difference(_cacheFechas[cacheKey]!).inMinutes < 30) {
+        _consumoData = _cacheData[cacheKey]!;
+        return;
       }
 
       // Calcular la fecha límite según el período seleccionado
@@ -33,11 +49,14 @@ class HistoryModel {
 
       switch (period) {
         case 'Día':
+          // Para un día, tomar 24 horas exactas
           fechaLimite = DateTime(
             ahora.year,
             ahora.month,
             ahora.day,
-          ).subtract(const Duration(days: 1));
+            ahora.hour,
+            ahora.minute,
+          ).subtract(const Duration(hours: 24));
           break;
         case 'Semana':
           fechaLimite = DateTime(
@@ -58,10 +77,15 @@ class HistoryModel {
             ahora.year,
             ahora.month,
             ahora.day,
-          ).subtract(const Duration(days: 1));
+            ahora.hour,
+            ahora.minute,
+          ).subtract(const Duration(hours: 24));
       }
 
-      // Consultar Firestore para obtener el historial de consumo
+      // Para vista de día, aumentamos el límite a 100 para tener más detalle
+      int queryLimit = period == 'Día' ? 100 : 50;
+
+      // Consultar Firestore para obtener el historial de consumo con límite
       final snapshot =
           await FirebaseFirestore.instance
               .collection('dispositivos_historial')
@@ -71,6 +95,7 @@ class HistoryModel {
                 isGreaterThanOrEqualTo: Timestamp.fromDate(fechaLimite),
               )
               .orderBy('fecha', descending: false)
+              .limit(queryLimit)
               .get();
 
       List<ConsumoData> datosCrudos = [];
@@ -136,9 +161,20 @@ class HistoryModel {
         }
       }
 
-      // Agrupar datos para reducir la cantidad de puntos
-      _consumoData = _agruparDatos(datosCrudos, period);
+      // Para la vista diaria, realizar menos agrupación para mantener más detalle
+      if (period == 'Día') {
+        // Agrupar datos en intervalos más cortos para día (1 hora)
+        _consumoData = _agruparDatosDiarios(datosCrudos);
+      } else {
+        // Agrupar datos para semana/mes como antes
+        _consumoData = _agruparDatos(datosCrudos, period);
+      }
+
       _ultimaActualizacion = DateTime.now();
+
+      // Guardar en caché
+      _cacheData[cacheKey] = List.from(_consumoData);
+      _cacheFechas[cacheKey] = _ultimaActualizacion;
     } catch (e) {
       print("Error al cargar datos históricos: $e");
       _consumoData = _generarDatosEjemplo(
@@ -149,7 +185,130 @@ class HistoryModel {
     }
   }
 
-  // Función para agrupar datos
+  // Limpiar caché para forzar recarga
+  void limpiarCache() {
+    _cacheData.clear();
+    _cacheFechas.clear();
+  }
+
+  // Nuevo método específico para agrupar datos diarios con más detalle
+  List<ConsumoData> _agruparDatosDiarios(List<ConsumoData> datos) {
+    if (datos.isEmpty) return [];
+
+    // Para datos diarios, intentamos mantener una resolución de 1 hora
+    final Duration intervalo = const Duration(hours: 1);
+
+    Map<DateTime, List<double>> gruposDatos = {};
+
+    // Agrupar datos por intervalos de 1 hora
+    for (var dato in datos) {
+      DateTime fecha = dato.fecha;
+      // Normalizar la fecha al inicio de la hora
+      DateTime inicioIntervalo = DateTime(
+        fecha.year,
+        fecha.month,
+        fecha.day,
+        fecha.hour,
+      );
+
+      if (!gruposDatos.containsKey(inicioIntervalo)) {
+        gruposDatos[inicioIntervalo] = [];
+      }
+      gruposDatos[inicioIntervalo]!.add(dato.consumo);
+    }
+
+    // Calcular promedio para cada grupo
+    List<ConsumoData> resultado = [];
+    gruposDatos.forEach((fecha, valores) {
+      double consumoPromedio = valores.reduce((a, b) => a + b) / valores.length;
+      resultado.add(ConsumoData(fecha: fecha, consumo: consumoPromedio));
+    });
+
+    // Ordenar por fecha
+    resultado.sort((a, b) => a.fecha.compareTo(b.fecha));
+
+    // Rellenar horas faltantes para tener las 24 horas completas
+    if (resultado.isNotEmpty) {
+      // Determinar el día de inicio (usando el primer punto)
+      final diaInicio = DateTime(
+        resultado.first.fecha.year,
+        resultado.first.fecha.month,
+        resultado.first.fecha.day,
+      );
+
+      // Crear un mapa con las horas existentes para rápida verificación
+      final horasExistentes = Map.fromIterable(
+        resultado,
+        key: (dato) => dato.fecha.hour,
+        value: (dato) => true,
+      );
+
+      // Lista para los puntos interpolados
+      final puntosInterpolados = <ConsumoData>[];
+
+      // Iterar por las 24 horas del día
+      for (int hora = 0; hora < 24; hora++) {
+        // Si no tenemos datos para esta hora, interpolar
+        if (!horasExistentes.containsKey(hora)) {
+          final fechaHora = DateTime(
+            diaInicio.year,
+            diaInicio.month,
+            diaInicio.day,
+            hora,
+          );
+
+          // Insertar punto interpolado
+          puntosInterpolados.add(
+            ConsumoData(
+              fecha: fechaHora,
+              consumo: _interpolarConsumo(resultado, fechaHora),
+            ),
+          );
+        }
+      }
+
+      // Añadir puntos interpolados
+      resultado.addAll(puntosInterpolados);
+
+      // Reordenar después de añadir puntos
+      resultado.sort((a, b) => a.fecha.compareTo(b.fecha));
+    }
+
+    return resultado;
+  }
+
+  // Método para interpolar consumo entre puntos existentes
+  double _interpolarConsumo(List<ConsumoData> datos, DateTime fecha) {
+    // Encontrar los puntos anterior y siguiente más cercanos
+    ConsumoData? anterior;
+    ConsumoData? siguiente;
+
+    for (var dato in datos) {
+      if (dato.fecha.isBefore(fecha) &&
+          (anterior == null || dato.fecha.isAfter(anterior.fecha))) {
+        anterior = dato;
+      }
+      if (dato.fecha.isAfter(fecha) &&
+          (siguiente == null || dato.fecha.isBefore(siguiente.fecha))) {
+        siguiente = dato;
+      }
+    }
+
+    // Si no tenemos ambos puntos, usar el promedio general
+    if (anterior == null || siguiente == null) {
+      return datos.map((e) => e.consumo).reduce((a, b) => a + b) / datos.length;
+    }
+
+    // Calcular interpolación lineal
+    final totalDuration =
+        siguiente.fecha.difference(anterior.fecha).inMilliseconds;
+    final currentPosition = fecha.difference(anterior.fecha).inMilliseconds;
+    final ratio = totalDuration > 0 ? currentPosition / totalDuration : 0.5;
+
+    return anterior.consumo + (siguiente.consumo - anterior.consumo) * ratio;
+  }
+
+  // Función para agrupar datos (para semana/mes)
   List<ConsumoData> _agruparDatos(List<ConsumoData> datos, String period) {
     if (datos.isEmpty) return [];
 

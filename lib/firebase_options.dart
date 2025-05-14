@@ -23,9 +23,15 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for ios - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
@@ -41,48 +47,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAvQpBZIOHLgmj4bbE0XcjyTdxDVd6N800',
-    appId: '1:398136970501:web:ed1f4a97988ea9fb5efb6c',
-    messagingSenderId: '398136970501',
-    projectId: 'micetap-f3c73',
-    authDomain: 'micetap-f3c73.firebaseapp.com',
-    storageBucket: 'micetap-f3c73.firebasestorage.app',
-    measurementId: 'G-TGGSG1B32N',
+    apiKey: 'AIzaSyD2O4wULnFBwnKIkD4UnHvOC1pwNHgMR-4',
+    appId: '1:1093111708053:web:b4a87b5cd34d5178f1de9c',
+    messagingSenderId: '1093111708053',
+    projectId: 'micetapv2',
+    authDomain: 'micetapv2.firebaseapp.com',
+    storageBucket: 'micetapv2.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCinBdDxEVP-uNPnTzcelNLkDgNS4wXh_c',
-    appId: '1:398136970501:android:d2957c99c7f187645efb6c',
-    messagingSenderId: '398136970501',
-    projectId: 'micetap-f3c73',
-    storageBucket: 'micetap-f3c73.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCdDZTck-W2x7JnVuKReypQru4auEogR4A',
-    appId: '1:398136970501:ios:ef5a22103889f8d45efb6c',
-    messagingSenderId: '398136970501',
-    projectId: 'micetap-f3c73',
-    storageBucket: 'micetap-f3c73.firebasestorage.app',
-    iosBundleId: 'com.example.micetapV1',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCdDZTck-W2x7JnVuKReypQru4auEogR4A',
-    appId: '1:398136970501:ios:ef5a22103889f8d45efb6c',
-    messagingSenderId: '398136970501',
-    projectId: 'micetap-f3c73',
-    storageBucket: 'micetap-f3c73.firebasestorage.app',
-    iosBundleId: 'com.example.micetapV1',
+    apiKey: 'AIzaSyC0zlOjqroHHPeor_-mCINS1fF9v9vvxW0',
+    appId: '1:1093111708053:android:fc7f2e2890dbfafef1de9c',
+    messagingSenderId: '1093111708053',
+    projectId: 'micetapv2',
+    storageBucket: 'micetapv2.firebasestorage.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAvQpBZIOHLgmj4bbE0XcjyTdxDVd6N800',
-    appId: '1:398136970501:web:e80b6c85d475ea4d5efb6c',
-    messagingSenderId: '398136970501',
-    projectId: 'micetap-f3c73',
-    authDomain: 'micetap-f3c73.firebaseapp.com',
-    storageBucket: 'micetap-f3c73.firebasestorage.app',
-    measurementId: 'G-TMZPJ6RPSZ',
+    apiKey: 'AIzaSyD2O4wULnFBwnKIkD4UnHvOC1pwNHgMR-4',
+    appId: '1:1093111708053:web:16645b96522820e7f1de9c',
+    messagingSenderId: '1093111708053',
+    projectId: 'micetapv2',
+    authDomain: 'micetapv2.firebaseapp.com',
+    storageBucket: 'micetapv2.firebasestorage.app',
   );
 }

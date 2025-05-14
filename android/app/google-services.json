@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "398136970501",
-    "project_id": "micetap-f3c73",
-    "storage_bucket": "micetap-f3c73.firebasestorage.app"
+    "project_number": "1093111708053",
+    "project_id": "micetapv2",
+    "storage_bucket": "micetapv2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:398136970501:android:d2957c99c7f187645efb6c",
+        "mobilesdk_app_id": "1:1093111708053:android:fc7f2e2890dbfafef1de9c",
         "android_client_info": {
           "package_name": "com.example.micetap_v1"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCinBdDxEVP-uNPnTzcelNLkDgNS4wXh_c"
+          "current_key": "AIzaSyC0zlOjqroHHPeor_-mCINS1fF9v9vvxW0"
         }
       ],
       "services": {

@@ -10,6 +10,9 @@ class HistoryController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Timer? _autoRefreshTimer;
 
+  // Variable para controlar si se debe realizar actualización continua
+  bool _autoUpdateEnabled = false;
+
   // Guardar la información del estrato
   int _userEstrato = 1;
 
@@ -34,6 +37,7 @@ class HistoryController {
   String? get deviceId => _model.deviceId;
   bool get isLoading => _model.isLoading;
   int get userEstrato => _userEstrato;
+  bool get autoUpdateEnabled => _autoUpdateEnabled;
 
   // Obtener la tarifa correspondiente al estrato del usuario
   double get tarifaActual =>
@@ -41,6 +45,14 @@ class HistoryController {
 
   // Setters
   set isLoading(bool value) => _model.isLoading = value;
+  set autoUpdateEnabled(bool value) {
+    _autoUpdateEnabled = value;
+    if (_autoUpdateEnabled) {
+      iniciarAutoActualizacion();
+    } else {
+      _detenerAutoActualizacion();
+    }
+  }
 
   // Inicialización con el ID del dispositivo
   void setDeviceId(String? id) {
@@ -66,6 +78,9 @@ class HistoryController {
 
   // Cambiar período y actualizar datos
   Future<void> cambiarPeriodo(String newPeriod) async {
+    // Si seleccionamos el mismo período, no recargamos
+    if (_selectedPeriod == newPeriod) return;
+
     _selectedPeriod = newPeriod;
     await cargarDatos();
   }
@@ -77,30 +92,53 @@ class HistoryController {
     isLoading = false;
   }
 
+  // Forzar recarga de datos (para botón de actualización)
+  Future<void> forzarRecarga() async {
+    isLoading = true;
+    _model.limpiarCache(); // Limpiar caché para forzar consulta a Firestore
+    await _model.cargarDatosHistoricos(_selectedPeriod);
+    isLoading = false;
+  }
+
   // Iniciar escucha de cambios en el dispositivo para actualización automática
   void iniciarAutoActualizacion() {
+    // Solo iniciar si está activada la actualización automática
+    if (!_autoUpdateEnabled) return;
+
     // Detener el timer existente si hay uno
     _detenerAutoActualizacion();
 
-    // Iniciar un nuevo timer que verifica cada minuto si necesitamos actualizar
-    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 1), (
+    // Iniciar un nuevo timer que verifica cada 10 minutos en lugar de cada minuto
+    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 10), (
       timer,
     ) async {
-      if (_model.necesitaActualizacion(const Duration(minutes: 5))) {
+      if (_model.necesitaActualizacion(const Duration(minutes: 30))) {
         await cargarDatos();
       }
     });
 
-    // También configurar escucha de cambios en Firestore si hay un deviceId
-    if (_model.deviceId != null) {
+    // Reducir las consultas de Firestore: Solo configurar escucha de cambios cuando sea necesario
+    // y si hay un deviceId
+    if (_model.deviceId != null && _autoUpdateEnabled) {
+      // Usar un listener más eficiente que solo reacciona a cambios significativos
       FirebaseFirestore.instance
           .collection('dispositivos')
           .doc(_model.deviceId)
           .snapshots()
           .listen((snapshot) {
-            // Si detectamos un cambio en el consumo actual, actualizamos los datos
             if (snapshot.exists) {
-              cargarDatos();
+              // Verificar si el consumo ha cambiado significativamente antes de actualizar
+              final consumoActual =
+                  snapshot.data()?['consumo'] as double? ?? 0.0;
+              final consumoPrevio =
+                  _model.consumoData.isNotEmpty
+                      ? _model.consumoData.last.consumo
+                      : 0.0;
+
+              // Solo actualizar si la diferencia es significativa (más de 0.5 kWh)
+              if ((consumoActual - consumoPrevio).abs() > 0.5) {
+                cargarDatos();
+              }
             }
           });
     }

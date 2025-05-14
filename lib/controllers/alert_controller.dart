@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:micetap_v1/models/alert_model.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:async'; // Importamos para StreamSubscription
 
 class AlertsController {
   final AlertsModel _model = AlertsModel();
@@ -17,6 +18,9 @@ class AlertsController {
 
   // Variable para controlar el estado de eliminación
   bool _isDeleting = false;
+
+  // Stream subscription para manejar la limpieza
+  StreamSubscription<QuerySnapshot>? _alertsSubscription;
 
   // Getters
   List<Alert> get currentAlerts => _currentAlerts;
@@ -73,12 +77,22 @@ class AlertsController {
     return _currentAlerts;
   }
 
-  // Obtener stream de alertas
+  // Obtener stream de alertas (limitado a 50 alertas)
   Stream<QuerySnapshot> getAlertsStream() {
-    return _model.getAlertsStream();
+    return _model.getAlertsStreamLimited(50);
   }
 
-  // Vaciar alertas con animación progresiva
+  // Método para cargar alertas por demanda (sin stream continuo)
+  Future<List<Alert>> loadAlertsByDeviceId(
+    String deviceId, {
+    int limit = 50,
+  }) async {
+    final alerts = await _model.getAlertsByDeviceIdLimited(deviceId, limit);
+    _currentAlerts = alerts;
+    return alerts;
+  }
+
+  // Vaciar alertas con animación progresiva - FIX para RangeError
   Future<void> clearAlerts(
     String deviceId,
     Function(int, int) onProgress,
@@ -90,36 +104,51 @@ class AlertsController {
     int deletedItems = 0;
 
     try {
-      // Ordenamos las alertas por fecha más reciente primero (para eliminar de arriba a abajo)
-      _currentAlerts.sort((a, b) {
-        if (a.dateTime == null || b.dateTime == null) return 0;
-        return b.dateTime!.compareTo(a.dateTime!);
-      });
+      if (totalItems > 0) {
+        // Procesamos las alertas en lotes para evitar problemas
+        for (int i = 0; i < totalItems; i += 10) {
+          // Crear un nuevo batch para cada grupo
+          final batch = _firestore.batch();
 
-      for (final alert in _currentAlerts) {
-        if (alert.docId != null) {
-          await _firestore.collection('alertas').doc(alert.docId).delete();
-          deletedItems++;
-          onProgress(deletedItems, totalItems); // Actualizamos el progreso
+          // Determinar cuántos elementos procesar en este lote
+          final end = i + 10 < totalItems ? i + 10 : totalItems;
 
-          // Pequeña pausa para hacer visible la eliminación progresiva
-          await Future.delayed(const Duration(milliseconds: 50));
+          // Agregar los documentos del lote al batch
+          for (int j = i; j < end; j++) {
+            if (j < _currentAlerts.length && _currentAlerts[j].docId != null) {
+              batch.delete(
+                _firestore.collection('alertas').doc(_currentAlerts[j].docId),
+              );
+            }
+          }
+
+          // Ejecutar el batch
+          await batch.commit();
+
+          // Actualizar el progreso
+          deletedItems = end;
+          onProgress(deletedItems, totalItems);
+
+          // Pequeña pausa para la UI
+          await Future.delayed(const Duration(milliseconds: 100));
         }
       }
 
-      // Eliminar cualquier alerta restante que pueda no tener ID
-      final batch = _firestore.batch();
+      // Asegurarnos de que no queden alertas sin eliminar
       final snapshot =
           await _firestore
               .collection('alertas')
               .where('deviceId', isEqualTo: deviceId)
+              .limit(100) // Limitar la consulta de limpieza
               .get();
 
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
+      if (snapshot.docs.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
       }
-
-      await batch.commit();
     } catch (e) {
       print('Error al eliminar alertas: $e');
     } finally {
@@ -201,5 +230,26 @@ class AlertsController {
         iconColor = Colors.blue;
     }
     return {'icon': icon, 'color': iconColor};
+  }
+
+  // Método para iniciar la escucha de alertas
+  void initAlertsListener(
+    String deviceId,
+    Function(List<Alert>) onAlertsUpdate,
+  ) {
+    // Cancelar suscripción previa si existe
+    _alertsSubscription?.cancel();
+
+    // Crear nueva suscripción con límite
+    _alertsSubscription = _model.getAlertsStreamLimited(50).listen((snapshot) {
+      final filteredAlerts = filterAlertsByDeviceId(snapshot, deviceId);
+      onAlertsUpdate(filteredAlerts);
+    });
+  }
+
+  // Método para liberar recursos
+  void dispose() {
+    _alertsSubscription?.cancel();
+    _alertsSubscription = null;
   }
 }

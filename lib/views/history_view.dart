@@ -1,3 +1,4 @@
+import 'dart:math' as Math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -20,13 +21,15 @@ class _HistoryViewState extends State<HistoryView> {
     decimalDigits: 0,
   );
 
+  // Control de actualización automática
+  bool _isAutoUpdateEnabled = false;
+
   @override
   void initState() {
     super.initState();
-    // Al inicializar, configurar para recibir actualizaciones automáticas
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.iniciarAutoActualizacion();
-    });
+
+    // Por defecto, NO configurar para recibir actualizaciones automáticas
+    // Solo lo haremos en el didChangeDependencies
   }
 
   @override
@@ -38,6 +41,9 @@ class _HistoryViewState extends State<HistoryView> {
     if (args != null && args is String) {
       _controller.setDeviceId(args);
       _cargarDatos();
+
+      // Solo iniciar auto-actualización si está habilitada
+      _controller.autoUpdateEnabled = _isAutoUpdateEnabled;
     }
   }
 
@@ -63,6 +69,47 @@ class _HistoryViewState extends State<HistoryView> {
     setState(() {
       _controller.isLoading = false;
     });
+  }
+
+  // Método para forzar recarga manual
+  Future<void> _forzarRecarga() async {
+    if (!mounted || _controller.isLoading) return;
+
+    setState(() {
+      _controller.isLoading = true;
+    });
+
+    await _controller.forzarRecarga();
+
+    if (!mounted) return;
+
+    setState(() {
+      _controller.isLoading = false;
+    });
+
+    // Mostrar mensaje de confirmación
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Datos actualizados correctamente')),
+    );
+  }
+
+  // Método para cambiar el estado de actualización automática
+  void _toggleAutoUpdate(bool newValue) {
+    setState(() {
+      _isAutoUpdateEnabled = newValue;
+      _controller.autoUpdateEnabled = newValue;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          newValue
+              ? 'Actualización automática activada'
+              : 'Actualización automática desactivada',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -104,12 +151,46 @@ class _HistoryViewState extends State<HistoryView> {
                                   onPressed:
                                       _controller.isLoading
                                           ? null
-                                          : _cargarDatos,
+                                          : _forzarRecarga,
                                   tooltip: 'Actualizar datos',
                                 ),
                               ],
                             ),
                           ),
+
+                        // Switch para activar/desactivar actualización automática
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16.0),
+                          padding: const EdgeInsets.all(8.0),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.sync,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Actualización automática',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: _isAutoUpdateEnabled,
+                                onChanged: _toggleAutoUpdate,
+                                activeColor: Colors.blue,
+                              ),
+                            ],
+                          ),
+                        ),
 
                         // Filtro de período
                         Container(
@@ -162,9 +243,9 @@ class _HistoryViewState extends State<HistoryView> {
                                           }
                                         },
                                         items:
-                                            _controller.periodOptions.map<
-                                              DropdownMenuItem<String>
-                                            >((String value) {
+                                            _controller.periodOptions.map((
+                                              String value,
+                                            ) {
                                               return DropdownMenuItem<String>(
                                                 value: value,
                                                 child: Text(value),
@@ -288,29 +369,104 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   Widget _buildConsumoChart() {
-    // Determinar el valor máximo de consumo
+    // Si no hay datos suficientes, mostrar mensaje
+    if (_controller.consumoData.isEmpty || _controller.consumoData.length < 2) {
+      return const Center(
+        child: Text(
+          "No hay suficientes datos para generar la gráfica",
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    // Calcular valores mínimos y máximos para mejorar la escala
+    double minY = double.infinity;
     double maxY = 0;
+
     for (var dato in _controller.consumoData) {
+      if (dato.consumo < minY) {
+        minY = dato.consumo;
+      }
       if (dato.consumo > maxY) {
         maxY = dato.consumo;
       }
     }
 
-    // Añadir un 20% extra de espacio
-    maxY = maxY * 1.2;
-    // Establecer un mínimo razonable
-    maxY = maxY < 1.0 ? 1.0 : maxY;
+    // Exagerar la escala para hacer visibles las variaciones pequeñas
+    // Reducir el mínimo y aumentar el máximo
+    double avgConsumo = _controller.getConsumoPromedio();
+
+    // Hacer que las variaciones se vean mucho más dramáticas
+    double rangeMultiplier = 5.0; // Factor de multiplicación de la diferencia
+
+    if (_controller.selectedPeriod == 'Día') {
+      // Para vista de día, hacemos que las variaciones sean aún más visibles
+      rangeMultiplier = 8.0;
+    }
+
+    // Calcular rango exagerado
+    double currentRange = maxY - minY;
+    double exaggeratedRange = currentRange * rangeMultiplier;
+
+    // Asegurar un rango mínimo de visualización basado en el promedio
+    double minVisibleRange = avgConsumo * 0.5; // Al menos 50% del promedio
+
+    // Usar el mayor entre el rango exagerado y el mínimo visible
+    double targetRange = Math.max(exaggeratedRange, minVisibleRange);
+
+    // Calcular nuevos límites manteniendo el promedio en el centro
+    minY = avgConsumo - (targetRange / 2);
+    maxY = avgConsumo + (targetRange / 2);
+
+    // Ajustar para asegurar que el mínimo no sea negativo
+    if (minY < 0) {
+      double adjustment = -minY;
+      minY = 0;
+      maxY += adjustment; // Mantener el rango
+    }
+
+    // Añadir un margen extra arriba y abajo
+    double paddingY = (maxY - minY) * 0.1;
+    minY = Math.max(0, minY - paddingY);
+    maxY = maxY + paddingY;
 
     // Definir el intervalo dinámico para el eje Y
-    double yInterval;
-    if (maxY <= 1.5) {
+    double? yInterval;
+    double range = maxY - minY;
+
+    if (range <= 0.5) {
+      yInterval = 0.1;
+    } else if (range <= 1.0) {
       yInterval = 0.2;
-    } else if (maxY <= 3.0) {
+    } else if (range <= 2.0) {
       yInterval = 0.5;
-    } else if (maxY <= 6.0) {
+    } else if (range <= 5.0) {
       yInterval = 1.0;
     } else {
-      yInterval = 2.0;
+      yInterval = range / 5; // Aproximadamente 5 líneas en el eje
+      // Redondear a un número "bonito"
+      // Redondear a un número "bonito"
+      if (yInterval > 10) {
+        yInterval = (Math.pow(10, 0) * (yInterval / 10).ceil()).toDouble();
+      } else if (yInterval > 5) {
+        yInterval = (Math.pow(5, 1) * (yInterval / 5).ceil()).toDouble();
+      } else if (yInterval > 2) {
+        yInterval = (2 * (yInterval / 2).ceil()).toDouble();
+      } else {
+        yInterval = yInterval.ceil().toDouble();
+      }
+    }
+
+    // Calcular intervalo horizontal para que se muestren más puntos
+    double hInterval = 1.0;
+    if (_controller.selectedPeriod == 'Día') {
+      // Para vista diaria, mostrar más puntos
+      hInterval = _controller.consumoData.length > 12 ? 2.0 : 1.0;
+    } else if (_controller.selectedPeriod == 'Semana') {
+      hInterval = _controller.consumoData.length > 14 ? 2.0 : 1.0;
+    } else {
+      // Mes
+      hInterval = _controller.consumoData.length > 20 ? 4.0 : 2.0;
     }
 
     return Padding(
@@ -320,8 +476,21 @@ class _HistoryViewState extends State<HistoryView> {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: true,
+            getDrawingHorizontalLine: (value) {
+              return FlLine(
+                color: Colors.grey.withOpacity(0.3),
+                strokeWidth: 0.8,
+                dashArray: [5, 5],
+              );
+            },
+            getDrawingVerticalLine: (value) {
+              return FlLine(
+                color: Colors.grey.withOpacity(0.2),
+                strokeWidth: 0.8,
+              );
+            },
             horizontalInterval: yInterval,
-            verticalInterval: _getChartInterval(),
+            verticalInterval: hInterval,
           ),
           titlesData: FlTitlesData(
             show: true,
@@ -335,7 +504,7 @@ class _HistoryViewState extends State<HistoryView> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
-                interval: _getChartInterval(),
+                interval: hInterval,
                 getTitlesWidget: (value, meta) {
                   if (value.toInt() >= 0 &&
                       value.toInt() < _controller.consumoData.length) {
@@ -361,52 +530,77 @@ class _HistoryViewState extends State<HistoryView> {
                 showTitles: true,
                 interval: yInterval,
                 getTitlesWidget: (value, meta) {
-                  return Text(
-                    '${value.toStringAsFixed(1)} kWh',
-                    style: const TextStyle(
-                      color: Color(0xff67727d),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Text(
+                      '${value.toStringAsFixed(1)} kWh',
+                      style: const TextStyle(
+                        color: Color(0xff67727d),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 9,
+                      ),
                     ),
                   );
                 },
-                reservedSize: 42,
+                reservedSize: 40,
               ),
             ),
           ),
           borderData: FlBorderData(
             show: true,
-            border: Border.all(color: const Color(0xff37434d), width: 1),
+            border: Border.all(
+              color: const Color(0xff37434d).withOpacity(0.6),
+              width: 1,
+            ),
           ),
           minX: 0,
           maxX: _controller.consumoData.length.toDouble() - 1,
-          minY: 0,
+          minY: minY,
           maxY: maxY,
           lineBarsData: [
             LineChartBarData(
               spots: _getFlSpots(),
               isCurved: true,
-              gradient: const LinearGradient(
-                colors: [Colors.blue, Colors.lightBlue],
+              curveSmoothness: 0.3,
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
               ),
-              barWidth: 3,
+              barWidth: 3.5,
               isStrokeCapRound: true,
               dotData: FlDotData(
                 show: true,
                 getDotPainter: (spot, percent, barData, index) {
-                  // Destacar el último punto como consumo actual
+                  Color dotColor;
+                  double radius;
+
                   if (index == _controller.consumoData.length - 1) {
-                    return FlDotCirclePainter(
-                      radius: 5,
-                      color: Colors.red,
-                      strokeWidth: 1,
-                      strokeColor: Colors.white,
-                    );
+                    dotColor = Colors.red;
+                    radius = 5;
+                  } else if (index == 0) {
+                    dotColor = Colors.green;
+                    radius = 4;
+                  } else {
+                    // Colorear en función de si está por encima o debajo del promedio
+                    final valor = _controller.consumoData[index].consumo;
+                    if (valor > avgConsumo * 1.1) {
+                      dotColor =
+                          Colors.orange; // Más del 10% por encima del promedio
+                      radius = 4;
+                    } else if (valor < avgConsumo * 0.9) {
+                      dotColor =
+                          Colors
+                              .lightBlue; // Más del 10% por debajo del promedio
+                      radius = 4;
+                    } else {
+                      dotColor = Colors.blue;
+                      radius = 3.5;
+                    }
                   }
+
                   return FlDotCirclePainter(
-                    radius: 4,
-                    color: Colors.blue,
-                    strokeWidth: 1,
+                    radius: radius,
+                    color: dotColor,
+                    strokeWidth: 1.5,
                     strokeColor: Colors.white,
                   );
                 },
@@ -463,6 +657,50 @@ class _HistoryViewState extends State<HistoryView> {
                 }).toList();
               },
             ),
+            touchSpotThreshold: 20,
+            handleBuiltInTouches: true,
+            getTouchedSpotIndicator: (
+              LineChartBarData barData,
+              List<int> spotIndexes,
+            ) {
+              return spotIndexes.map((spotIndex) {
+                return TouchedSpotIndicatorData(
+                  FlLine(color: Colors.blue, strokeWidth: 2, dashArray: [3, 3]),
+                  FlDotData(
+                    getDotPainter: (spot, percent, barData, index) {
+                      return FlDotCirclePainter(
+                        radius: 6,
+                        color: Colors.white,
+                        strokeWidth: 3,
+                        strokeColor: Colors.blue,
+                      );
+                    },
+                  ),
+                );
+              }).toList();
+            },
+          ),
+          extraLinesData: ExtraLinesData(
+            horizontalLines: [
+              // Línea de promedio
+              HorizontalLine(
+                y: avgConsumo,
+                color: Colors.green.withOpacity(0.8),
+                strokeWidth: 1.5,
+                dashArray: [5, 5],
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 5, bottom: 5),
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 9,
+                  ),
+                  labelResolver: (line) => 'Promedio',
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -489,10 +727,13 @@ class _HistoryViewState extends State<HistoryView> {
 
   String _formatDate(DateTime fecha) {
     if (_controller.selectedPeriod == 'Día') {
+      // Formato para hora del día: solo la hora
       return DateFormat('HH:mm').format(fecha);
     } else if (_controller.selectedPeriod == 'Semana') {
+      // Formato para semana: abreviatura del día
       return DateFormat('E').format(fecha);
     } else {
+      // Formato para mes: día/mes
       return DateFormat('dd/MM').format(fecha);
     }
   }
@@ -520,6 +761,10 @@ class _HistoryViewState extends State<HistoryView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Resto del método permanece igual...
+        // (Código de _buildConsumoSummary())
+        // ...
+
         // Sección de eficiencia energética
         Container(
           width: double.infinity,
