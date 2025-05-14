@@ -1,10 +1,10 @@
-import 'dart:math' as Math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:micetap_v1/controllers/history_controller.dart';
 import 'package:micetap_v1/widgets/appbard.dart';
 import 'package:micetap_v1/widgets/buttonback.dart';
+import 'dart:math' as Math;
 
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
@@ -21,15 +21,13 @@ class _HistoryViewState extends State<HistoryView> {
     decimalDigits: 0,
   );
 
-  // Control de actualización automática
-  bool _isAutoUpdateEnabled = false;
-
   @override
   void initState() {
     super.initState();
-
-    // Por defecto, NO configurar para recibir actualizaciones automáticas
-    // Solo lo haremos en el didChangeDependencies
+    // Al inicializar, configurar para recibir actualizaciones automáticas
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.iniciarAutoActualizacion();
+    });
   }
 
   @override
@@ -41,9 +39,6 @@ class _HistoryViewState extends State<HistoryView> {
     if (args != null && args is String) {
       _controller.setDeviceId(args);
       _cargarDatos();
-
-      // Solo iniciar auto-actualización si está habilitada
-      _controller.autoUpdateEnabled = _isAutoUpdateEnabled;
     }
   }
 
@@ -69,47 +64,6 @@ class _HistoryViewState extends State<HistoryView> {
     setState(() {
       _controller.isLoading = false;
     });
-  }
-
-  // Método para forzar recarga manual
-  Future<void> _forzarRecarga() async {
-    if (!mounted || _controller.isLoading) return;
-
-    setState(() {
-      _controller.isLoading = true;
-    });
-
-    await _controller.forzarRecarga();
-
-    if (!mounted) return;
-
-    setState(() {
-      _controller.isLoading = false;
-    });
-
-    // Mostrar mensaje de confirmación
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Datos actualizados correctamente')),
-    );
-  }
-
-  // Método para cambiar el estado de actualización automática
-  void _toggleAutoUpdate(bool newValue) {
-    setState(() {
-      _isAutoUpdateEnabled = newValue;
-      _controller.autoUpdateEnabled = newValue;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          newValue
-              ? 'Actualización automática activada'
-              : 'Actualización automática desactivada',
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   @override
@@ -151,46 +105,12 @@ class _HistoryViewState extends State<HistoryView> {
                                   onPressed:
                                       _controller.isLoading
                                           ? null
-                                          : _forzarRecarga,
+                                          : _cargarDatos,
                                   tooltip: 'Actualizar datos',
                                 ),
                               ],
                             ),
                           ),
-
-                        // Switch para activar/desactivar actualización automática
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16.0),
-                          padding: const EdgeInsets.all(8.0),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.sync,
-                                color: Colors.blue,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  'Actualización automática',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              Switch(
-                                value: _isAutoUpdateEnabled,
-                                onChanged: _toggleAutoUpdate,
-                                activeColor: Colors.blue,
-                              ),
-                            ],
-                          ),
-                        ),
 
                         // Filtro de período
                         Container(
@@ -392,78 +312,61 @@ class _HistoryViewState extends State<HistoryView> {
       }
     }
 
-    // Exagerar la escala para hacer visibles las variaciones pequeñas
-    // Reducir el mínimo y aumentar el máximo
+    // Calcular el promedio para centrar el gráfico
     double avgConsumo = _controller.getConsumoPromedio();
 
-    // Hacer que las variaciones se vean mucho más dramáticas
-    double rangeMultiplier = 5.0; // Factor de multiplicación de la diferencia
+    // Hacer que las variaciones se vean más dramáticas, pero con límite superior de 5.0
+    double maxRange = 5.0; // Máximo valor para el eje Y
+    double minRange = 0.0; // Mínimo valor para el eje Y
 
-    if (_controller.selectedPeriod == 'Día') {
-      // Para vista de día, hacemos que las variaciones sean aún más visibles
-      rangeMultiplier = 8.0;
+    // Calcular el rango basado en los datos pero respetando los límites
+    double targetRange;
+
+    if (maxY > minY) {
+      // Conservar algo de la dinámica de exageración para visualizar mejor las diferencias
+      double actualRange = maxY - minY;
+      double exaggeratedRange =
+          actualRange * (_controller.selectedPeriod == 'Día' ? 3.0 : 2.0);
+
+      // Asegurar que estamos dentro del rango deseado
+      targetRange = Math.min(exaggeratedRange, maxRange - minRange);
+
+      // Centrar alrededor del promedio, pero respetar los límites
+      double halfRange = targetRange / 2;
+      minY = Math.max(
+        minRange,
+        Math.min(avgConsumo - halfRange, maxRange - targetRange),
+      );
+      maxY = Math.min(maxRange, minY + targetRange);
+    } else {
+      // Si solo hay un valor o todos son iguales
+      minY = minRange;
+      maxY = maxRange;
     }
 
-    // Calcular rango exagerado
-    double currentRange = maxY - minY;
-    double exaggeratedRange = currentRange * rangeMultiplier;
-
-    // Asegurar un rango mínimo de visualización basado en el promedio
-    double minVisibleRange = avgConsumo * 0.5; // Al menos 50% del promedio
-
-    // Usar el mayor entre el rango exagerado y el mínimo visible
-    double targetRange = Math.max(exaggeratedRange, minVisibleRange);
-
-    // Calcular nuevos límites manteniendo el promedio en el centro
-    minY = avgConsumo - (targetRange / 2);
-    maxY = avgConsumo + (targetRange / 2);
-
-    // Ajustar para asegurar que el mínimo no sea negativo
-    if (minY < 0) {
-      double adjustment = -minY;
-      minY = 0;
-      maxY += adjustment; // Mantener el rango
-    }
-
-    // Añadir un margen extra arriba y abajo
-    double paddingY = (maxY - minY) * 0.1;
-    minY = Math.max(0, minY - paddingY);
-    maxY = maxY + paddingY;
-
-    // Definir el intervalo dinámico para el eje Y
-    double? yInterval;
+    // Ajustar el cálculo del intervalo Y para que sea apropiado para el rango 0-5
+    double yInterval;
     double range = maxY - minY;
 
-    if (range <= 0.5) {
-      yInterval = 0.1;
-    } else if (range <= 1.0) {
+    if (range <= 1.0) {
       yInterval = 0.2;
     } else if (range <= 2.0) {
       yInterval = 0.5;
     } else if (range <= 5.0) {
       yInterval = 1.0;
     } else {
-      yInterval = range / 5; // Aproximadamente 5 líneas en el eje
-      // Redondear a un número "bonito"
-      // Redondear a un número "bonito"
-      if (yInterval > 10) {
-        yInterval = (Math.pow(10, 0) * (yInterval / 10).ceil()).toDouble();
-      } else if (yInterval > 5) {
-        yInterval = (Math.pow(5, 1) * (yInterval / 5).ceil()).toDouble();
-      } else if (yInterval > 2) {
-        yInterval = (2 * (yInterval / 2).ceil()).toDouble();
-      } else {
-        yInterval = yInterval.ceil().toDouble();
-      }
+      yInterval =
+          1.0; // Por seguridad, aunque deberíamos estar siempre en el rango 0-5
     }
 
-    // Calcular intervalo horizontal para que se muestren más puntos
+    // Calcular intervalo horizontal para que se muestren menos etiquetas en la vista diaria
     double hInterval = 1.0;
     if (_controller.selectedPeriod == 'Día') {
-      // Para vista diaria, mostrar más puntos
-      hInterval = _controller.consumoData.length > 12 ? 2.0 : 1.0;
+      // Para vista diaria, mostrar menos puntos en el eje X
+      hInterval = _controller.consumoData.length > 18 ? 3.0 : 2.0;
     } else if (_controller.selectedPeriod == 'Semana') {
-      hInterval = _controller.consumoData.length > 14 ? 2.0 : 1.0;
+      // Para vista semanal, usar intervalo de 1 para mostrar todos los días
+      hInterval = 1.0;
     } else {
       // Mes
       hInterval = _controller.consumoData.length > 20 ? 4.0 : 2.0;
@@ -503,25 +406,61 @@ class _HistoryViewState extends State<HistoryView> {
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 30,
-                interval: hInterval,
+                reservedSize: 22,
+                interval:
+                    _controller.selectedPeriod == 'Semana'
+                        ? 1.0
+                        : hInterval, // Mostrar cada día en vista semanal
                 getTitlesWidget: (value, meta) {
                   if (value.toInt() >= 0 &&
                       value.toInt() < _controller.consumoData.length) {
                     final fecha = _controller.consumoData[value.toInt()].fecha;
+
+                    // Determinar si esta etiqueta debe mostrarse
+                    bool showLabel = true;
+                    if (_controller.selectedPeriod == 'Día') {
+                      // En vista diaria, mostrar solo etiquetas en horas específicas
+                      showLabel = fecha.hour % 3 == 0; // Cada 3 horas
+                    } else if (_controller.selectedPeriod == 'Semana') {
+                      // En vista semanal, asegurarse de mostrar un punto por día
+                      if (value > 0 &&
+                          value < _controller.consumoData.length - 1) {
+                        final prevFecha =
+                            _controller.consumoData[value.toInt() - 1].fecha;
+                        // Solo mostrar si cambia el día de la semana
+                        showLabel = prevFecha.weekday != fecha.weekday;
+                      } else {
+                        // Primera y última etiqueta siempre se muestran
+                        showLabel = true;
+                      }
+                    }
+
+                    if (!showLabel && _controller.selectedPeriod != 'Semana') {
+                      return const SizedBox.shrink(); // No mostrar esta etiqueta excepto en vista semanal
+                    }
+
+                    // Formato de hora/día compacto
+                    String labelText = _formatDate(fecha);
+
                     return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        _formatDate(fecha),
-                        style: const TextStyle(
-                          color: Color(0xff68737d),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                      padding: const EdgeInsets.only(top: 10.0),
+                      child: SizedBox(
+                        width: _controller.selectedPeriod == 'Semana' ? 30 : 25,
+                        child: Text(
+                          labelText,
+                          style: TextStyle(
+                            color: Color(0xff68737d),
+                            fontWeight: FontWeight.bold,
+                            fontSize:
+                                _controller.selectedPeriod == 'Semana' ? 10 : 9,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.visible,
                         ),
                       ),
                     );
                   }
-                  return const Text('');
+                  return const SizedBox.shrink();
                 },
               ),
             ),
@@ -727,14 +666,15 @@ class _HistoryViewState extends State<HistoryView> {
 
   String _formatDate(DateTime fecha) {
     if (_controller.selectedPeriod == 'Día') {
-      // Formato para hora del día: solo la hora
-      return DateFormat('HH:mm').format(fecha);
+      // Formato para hora del día: solo la hora (sin minutos, compacto)
+      return '${fecha.hour}h'; // Ej: 9h, 15h, 21h
     } else if (_controller.selectedPeriod == 'Semana') {
-      // Formato para semana: abreviatura del día
-      return DateFormat('E').format(fecha);
+      // Formato para semana: abreviatura del día (lunes a domingo)
+      final weekdayNames = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'];
+      return weekdayNames[fecha.weekday - 1];
     } else {
-      // Formato para mes: día/mes
-      return DateFormat('dd/MM').format(fecha);
+      // Formato para mes: día/mes (compacto)
+      return '${fecha.day}/${fecha.month}';
     }
   }
 
@@ -757,14 +697,35 @@ class _HistoryViewState extends State<HistoryView> {
     // Etiqueta de eficiencia
     final etiqueta = _controller.getEtiquetaEficiencia();
     final colorEtiqueta = Color(_controller.getColorEficiencia());
-
+    if (_controller.esUsuarioNuevo()) {
+      // Mostrar mensaje informativo sobre datos estimados
+      Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Los valores mostrados son estimados porque aún no hay suficiente historial de consumo. La información será más precisa con el tiempo.",
+                style: TextStyle(fontSize: 12, color: Colors.blue.shade800),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Resto del método permanece igual...
-        // (Código de _buildConsumoSummary())
-        // ...
-
         // Sección de eficiencia energética
         Container(
           width: double.infinity,

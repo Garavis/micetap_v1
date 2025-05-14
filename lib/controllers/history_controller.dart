@@ -155,6 +155,10 @@ class HistoryController {
     _detenerAutoActualizacion();
   }
 
+  bool esUsuarioNuevo() {
+    return _model.esUsuarioNuevo();
+  }
+
   // Obtener información de resumen
   double getConsumoTotal() => _model.getConsumoTotal();
   double getConsumoMaximo() => _model.getConsumoMaximo();
