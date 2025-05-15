@@ -62,7 +62,8 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/Icono MICETAP.png"
+  image_path: "assets/images/MICETAP.png"
+  remove_alpha_ios: true
 # The following section is specific to Flutter packages.
 flutter:
   assets:
